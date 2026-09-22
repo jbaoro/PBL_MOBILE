@@ -20,6 +20,22 @@ npm run dev
 
 브라우저에서 [http://localhost:3000](http://localhost:3000)을 엽니다.
 
+### Windows PowerShell에서 npm을 찾지 못하는 경우
+
+Node.js가 설치되어 있는데도 `npm`을 인식하지 못하면 새 PowerShell 창을 열거나 현재 창에서 Node.js 경로를 임시로 추가합니다.
+
+```powershell
+$env:Path += ";C:\Program Files\nodejs"
+npm.cmd install
+npm.cmd run dev
+```
+
+매번 설정하지 않으려면 Windows 환경 변수 `Path`에 다음 경로를 추가한 뒤 VS Code 터미널을 다시 엽니다.
+
+```text
+C:\Program Files\nodejs
+```
+
 ### 확인 명령
 
 ```bash
