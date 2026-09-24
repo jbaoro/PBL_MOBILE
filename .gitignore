@@ -3,3 +3,12 @@ node_modules
 out
 npm-debug.log*
 .DS_Store
+/generated/prisma
+
+# Local environment variables
+.env
+.env.local
+
+# Local SQLite database files
+prisma/*.db
+prisma/*.db-journal
