@@ -1,11 +1,21 @@
 {
   "name": "meetpoint-demo",
   "private": true,
+  "engines": {
+    "node": "^20.19.0 || ^22.12.0 || >=24.0.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run lint && npm run typecheck",
+    "db:validate": "prisma validate",
+    "db:generate": "prisma generate",
+    "db:setup": "npm run db:deploy && npm run db:generate",
+    "db:migrate": "node scripts/prepare-sqlite.mjs && prisma migrate dev",
+    "db:deploy": "node scripts/prepare-sqlite.mjs && prisma migrate deploy"
   },
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.10.0",
