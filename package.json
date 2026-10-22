@@ -6,6 +6,7 @@
   },
   "scripts": {
     "dev": "next dev",
+    "test:meetpoint": "node scripts/test-meetpoint.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
