@@ -18,6 +18,12 @@ import {
   IconRefresh,
   IconUtensils,
   IconCoffee,
+  IconStar,
+  IconThumbUp,
+  IconPhone,
+  IconInfo,
+  IconAlert,
+  IconLightbulb,
 } from './components/Icons';
 import {
   calculateDynamicMidpoint,
@@ -797,15 +803,15 @@ export default function HomePage() {
 
     const lines = [
       `[MeetPoint 약속 안내]`,
-      `📌 모임명: ${meetingTitle}`,
-      `🏆 추천 중간 장소: ${currentResult.name}`,
-      `⏱ 평균 이동시간: 약 ${currentResult.eta}분 (공정성 지수: ${currentResult.fairness}%)`,
+      `- 모임명: ${meetingTitle}`,
+      `- 추천 중간 장소: ${currentResult.name}`,
+      `- 평균 이동시간: 약 ${currentResult.eta}분 (공정성 지수: ${currentResult.fairness}%)`,
       `\n[참가자별 소요 시간]`,
       ...participantsWithTimes.map(
         (p) =>
           `• ${p.name} (${p.locationName} 출발 / ${p.transport === 'transit' ? '대중교통' : p.transport === 'car' ? '자동차' : '도보'}): 약 ${p.calculatedTime}분`
       ),
-      `\n🔗 약속 링크: ${window.location.href}`,
+      `\n- 약속 링크: ${window.location.href}`,
     ];
 
     const copied = await copyToClipboard(lines.join('\n'));
@@ -923,8 +929,18 @@ export default function HomePage() {
       {showConfigHelp && isApiConfigured === false && (
         <aside style={{ margin: '10px 16px', padding: '14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '12px', fontSize: '0.82rem', color: '#92400e' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-            <strong>💡 카카오 실시간 경로 API 활성화 방법</strong>
-            <button type="button" onClick={() => setShowConfigHelp(false)} style={{ background: 'transparent', color: '#b45309', fontWeight: 'bold' }}>✕</button>
+            <strong style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <IconLightbulb size={15} color="#b45309" />
+              카카오 실시간 경로 API 활성화 방법
+            </strong>
+            <button
+              type="button"
+              onClick={() => setShowConfigHelp(false)}
+              style={{ background: 'transparent', color: '#b45309', display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '2px' }}
+              aria-label="안내 닫기"
+            >
+              <IconClose size={14} color="#b45309" />
+            </button>
           </div>
           <p style={{ marginBottom: '6px' }}>
             프로젝트 루트의 <code>.env.local</code> 파일에 아래와 같이 카카오 REST API 키를 등록하면 실시간 지하철·버스 및 자동차 경로가 연동됩니다:
@@ -961,13 +977,15 @@ export default function HomePage() {
       <main className="main-content">
         {/* API 알림 및 에러 안내 */}
         {apiErrorMessage && (
-          <div style={{ padding: '9px 14px', background: '#fef2f2', border: '1px solid #fecdd3', borderRadius: '10px', fontSize: '0.8rem', color: '#dc2626', marginBottom: '12px' }}>
-            ⚠️ {apiErrorMessage} (스마트 추정 모드로 전환되었습니다)
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 14px', background: '#fef2f2', border: '1px solid #fecdd3', borderRadius: '10px', fontSize: '0.8rem', color: '#dc2626', marginBottom: '12px' }}>
+            <IconAlert size={14} color="#dc2626" />
+            <span>{apiErrorMessage} (스마트 추정 모드로 전환되었습니다)</span>
           </div>
         )}
         {apiNotice && (
-          <div style={{ padding: '8px 12px', background: '#eff6ff', borderRadius: '8px', fontSize: '0.78rem', color: '#1d4ed8', marginBottom: '10px' }}>
-            ℹ️ {apiNotice}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px', background: '#eff6ff', borderRadius: '8px', fontSize: '0.78rem', color: '#1d4ed8', marginBottom: '10px' }}>
+            <IconInfo size={14} color="#1d4ed8" />
+            <span>{apiNotice}</span>
           </div>
         )}
 
@@ -1217,7 +1235,12 @@ export default function HomePage() {
                         <div className="candidate-name-row">
                           <span className="candidate-name">{candidate.name}</span>
                           {index === 0 && <span className="top-choice-tag">1순위 추천</span>}
-                          {isTopVoted && <span className="top-voted-badge">⭐ 최다 득표</span>}
+                          {isTopVoted && (
+                            <span className="top-voted-badge">
+                              <IconStar size={11} color="#b45309" />
+                              <span>최다 득표</span>
+                            </span>
+                          )}
                         </div>
                         <div className="candidate-subway-tags">
                           {candidate.subwayLines.map((line) => (
@@ -1247,7 +1270,8 @@ export default function HomePage() {
                           onClick={(e) => handleVote(candidate.name, e)}
                           title={isMyVote ? '투표 취소' : `${candidate.name}에 투표`}
                         >
-                          👍 {voteCount > 0 ? `${voteCount}표` : '투표'}
+                          <IconThumbUp size={12} color={isMyVote ? '#1d4ed8' : '#64748b'} />
+                          <span>{voteCount > 0 ? `${voteCount}표` : '투표'}</span>
                         </button>
                       </div>
                       <span className="candidate-score">{candidate.score}점</span>
@@ -1334,7 +1358,12 @@ export default function HomePage() {
                       </div>
                       <div className="place-card-meta">
                         <span>{place.address}</span>
-                        {place.phone && <span>📞 {place.phone}</span>}
+                        {place.phone && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <IconPhone size={11} color="#64748b" />
+                            <span>{place.phone}</span>
+                          </span>
+                        )}
                       </div>
 
                       <div className="place-action-row">
@@ -1365,8 +1394,9 @@ export default function HomePage() {
                             </div>
                           ) : placeRouteDetail ? (
                             <div>
-                              <div className="place-routes-title">
-                                📍 {place.name}까지 예상 이동시간
+                              <div className="place-routes-title" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <IconPin size={13} color="#2563eb" />
+                                <span>{place.name}까지 예상 이동시간</span>
                                 {placeRouteDetail.metrics && (
                                   <span style={{ marginLeft: '8px', color: '#2563eb' }}>
                                     (최대 {Math.ceil(placeRouteDetail.metrics.maxMinutes)}분 / 평균 {Math.round(placeRouteDetail.metrics.averageMinutes)}분)
@@ -1527,9 +1557,9 @@ export default function HomePage() {
                   value={formTransport}
                   onChange={(e) => setFormTransport(e.target.value as Transport)}
                 >
-                  <option value="transit">🚇 대중교통 (지하철·버스)</option>
-                  <option value="car">🚗 자동차</option>
-                  <option value="walk">🚶 도보</option>
+                  <option value="transit">대중교통 (지하철·버스)</option>
+                  <option value="car">자동차</option>
+                  <option value="walk">도보</option>
                 </select>
               </div>
 

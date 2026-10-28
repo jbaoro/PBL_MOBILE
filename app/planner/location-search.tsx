@@ -1,40 +1,49 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import type { ApiResponse, Location } from '@/lib/meetpoint/types';
 import styles from './planner.module.css';
 
-export default function LocationSearch({ id, value, disabled, onChange }: {
-  id: string; value?: Location; disabled: boolean; onChange: (location?: Location) => void;
-}) {
+type Props = {
+  id: string;
+  value?: Location;
+  disabled?: boolean;
+  onChange: (value?: Location) => void;
+};
+
+export default function LocationSearch({ id, value, disabled, onChange }: Props) {
   const [query, setQuery] = useState(value?.name ?? '');
   const [results, setResults] = useState<Location[]>([]);
-  const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
   const controller = useRef<AbortController>();
   const version = useRef(0);
-  useEffect(() => () => controller.current?.abort(), []);
 
   async function search(event: React.FormEvent) {
     event.preventDefault();
+    const trimmed = query.trim();
+    if (!trimmed) { setMessage('검색어를 입력해 주세요.'); return; }
     controller.current?.abort();
-    const currentVersion = ++version.current;
     const request = new AbortController();
     controller.current = request;
-    setResults([]);
-    if (!query.trim()) { setMessage('주소나 역 이름을 입력해 주세요.'); return; }
-    setBusy(true); setMessage('');
+    const current = ++version.current;
+    setBusy(true); setMessage(''); setResults([]);
     try {
-      const response = await fetch(`/api/locations/search?query=${encodeURIComponent(query.trim())}`, { signal: request.signal });
-      const body: ApiResponse<{ locations: Location[]; notices: string[] }> = await response.json();
-      if ('error' in body) throw new Error(body.error.message);
-      if (!response.ok) throw new Error('검색하지 못했어요. 다시 시도해 주세요.');
-      if (version.current !== currentVersion) return;
-      setResults(body.data.locations);
-      setMessage(body.data.locations.length ? body.data.notices.join(' ') : '검색 결과가 없어요. 지역명이나 도로명 주소를 함께 입력해 보세요.');
-    } catch (error) {
-      if (!request.signal.aborted && version.current === currentVersion) setMessage(error instanceof Error ? error.message : '검색하지 못했어요.');
-    } finally { if (version.current === currentVersion) setBusy(false); }
+      const response = await fetch(`/api/locations/search?query=${encodeURIComponent(trimmed)}`, { signal: request.signal });
+      const payload: ApiResponse<{ locations: Location[]; notices: string[] }> = await response.json();
+      if (request.signal.aborted || current !== version.current) return;
+      if ('error' in payload) throw new Error(payload.error.message);
+      if (!response.ok) throw new Error('검색을 완료하지 못했어요.');
+      setResults(payload.data.locations);
+      if (!payload.data.locations.length) setMessage('검색 결과가 없어요. 다른 이름이나 도로명으로 다시 찾아보세요.');
+      else if (payload.data.notices.length) setMessage(payload.data.notices[0]);
+    } catch (cause) {
+      if (!request.signal.aborted && current === version.current) {
+        setMessage(cause instanceof Error ? cause.message : '검색을 완료하지 못했어요.');
+      }
+    } finally {
+      if (current === version.current) setBusy(false);
+    }
   }
 
   return <div className={styles.locationSearch}>
@@ -50,7 +59,12 @@ export default function LocationSearch({ id, value, disabled, onChange }: {
         <button type="submit" disabled={disabled || busy || !query.trim()} className={styles.secondary}>{busy ? '검색 중' : '검색'}</button>
       </div>
     </form>
-    {value && <div className={styles.chosenLocation}><span aria-hidden="true">✓</span><div><strong>{value.name}</strong><p>{value.address}</p></div></div>}
+    {value && <div className={styles.chosenLocation}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <polyline points="20 6 9 17 4 12" />
+      </svg>
+      <div><strong>{value.name}</strong><p>{value.address}</p></div>
+    </div>}
     <div id={`${id}-location-message`} role="status" className={styles.fieldMessage}>{message}</div>
     {results.length > 0 && <ul className={styles.searchResults} aria-label="출발지 검색 결과">
       {results.map((item) => <li key={item.id}><button type="button" disabled={disabled} onClick={() => {
