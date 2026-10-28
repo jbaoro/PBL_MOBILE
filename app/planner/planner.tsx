@@ -76,6 +76,34 @@ export default function Planner() {
       .catch(() => { if (!request.signal.aborted) setStatusError('서버 연결 상태를 확인하지 못했어요.'); });
     return () => request.abort();
   }, [statusVersion]);
+
+  // 메인 화면에서 등록된 참가자 정보가 있으면 자동 동기화
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('meetpoint_session_data');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.participants && Array.isArray(parsed.participants) && parsed.participants.length >= 2) {
+          const synced: Draft[] = parsed.participants.map((p: { id: string; name: string; transport: Transport; locationName: string; address?: string; lat: number; lng: number }) => ({
+            id: p.id,
+            name: p.name,
+            transport: p.transport,
+            origin: {
+              id: p.id,
+              name: p.locationName,
+              address: p.address || p.locationName,
+              lat: p.lat,
+              lng: p.lng,
+            },
+          }));
+          setPeople(synced);
+        }
+      }
+    } catch {
+      // 무시
+    }
+  }, []);
+
   useEffect(() => () => { recommendationController.current?.abort(); detailController.current?.abort(); }, []);
 
   useEffect(() => {
