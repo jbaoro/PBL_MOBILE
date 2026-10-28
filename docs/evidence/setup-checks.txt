@@ -1,0 +1,116 @@
+MeetPoint PBL setup verification | 2026-10-07 (Asia/Seoul)
+
+Base: master @ 42dc4118fdf7e51b72b7b019701332fc6878fb37
+
+Reviewed changes: chore/pbl-setup
+
+npm ci: PASS (501 packages installed from package-lock.json)
+
+$ node --version
+v24.19.0
+EXIT_CODE=0
+
+$ npm --version
+11.17.0
+EXIT_CODE=0
+
+$ npm run db:validate
+
+> db:validate
+> prisma validate
+
+◇ injected env (1) from .env
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma\schema.prisma.
+The schema at prisma\schema.prisma is valid 🚀
+EXIT_CODE=0
+
+$ npm run db:setup
+
+> db:setup
+> npm run db:deploy && npm run db:generate
+
+
+> db:deploy
+> node scripts/prepare-sqlite.mjs && prisma migrate deploy
+
+◇ injected env (1) from .env
+◇ injected env (1) from .env
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma\schema.prisma.
+Datasource "db": SQLite database "dev.db" at "file:./dev.db"
+
+1 migration found in prisma/migrations
+
+
+No pending migrations to apply.
+
+> db:generate
+> prisma generate
+
+◇ injected env (1) from .env
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma\schema.prisma.
+
+✔ Generated Prisma Client (7.10.0) to .\generated\prisma in 29ms
+
+EXIT_CODE=0
+
+$ npm run check
+
+> check
+> npm run lint && npm run typecheck
+
+
+> lint
+> next lint
+
+✔ No ESLint warnings or errors
+
+> typecheck
+> tsc --noEmit
+
+EXIT_CODE=0
+
+$ npm run build
+
+> build
+> next build
+
+  ▲ Next.js 14.2.15
+  - Environments: .env
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/5) ...
+   Generating static pages (1/5)
+   Generating static pages (2/5)
+   Generating static pages (3/5)
+ ✓ Generating static pages (5/5)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                              Size     First Load JS
+┌ ○ /                                    1.48 kB        88.6 kB
+├ ○ /_not-found                          873 B            88 kB
+└ ƒ /api/auth/signup                     0 B                0 B
++ First Load JS shared by all            87.1 kB
+  ├ chunks/117-611f4e0a9ffc26e1.js       31.6 kB
+  ├ chunks/fd9d1056-7d9b70e9456442b8.js  53.6 kB
+  └ other shared chunks (total)          1.86 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+EXIT_CODE=0
+
+Runtime: GET / 200; POST /api/auth/signup 501 with preparation message; GET signup 405.
+Browser: initial average 31; editing first time 42->46 changes average to 32; selecting Seoul Station updates displayed name/score; console errors/warnings: none observed.
+Mobile: viewport width 390, document width 390 (no horizontal overflow).
+Scratch DB: fresh deployment PASS; repeat deployment preserves verification row; integrity_check=ok; unique email constraint enforced.

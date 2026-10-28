@@ -1,0 +1,309 @@
+{
+  "checkedAt": "2026-10-22T13:22:37.578Z",
+  "checks": [
+    {
+      "label": "configuration",
+      "status": 200,
+      "configured": true
+    },
+    {
+      "label": "search:양재역",
+      "status": 200,
+      "count": 10,
+      "selected": "양재역 3호선"
+    },
+    {
+      "label": "search:강남역",
+      "status": 200,
+      "count": 10,
+      "selected": "강남역 2호선"
+    },
+    {
+      "label": "search:부산역",
+      "status": 200,
+      "count": 10,
+      "selected": "부산역 부산1호선"
+    },
+    {
+      "label": "search:선릉역",
+      "status": 200,
+      "count": 10,
+      "selected": "선릉역 수인분당선"
+    },
+    {
+      "label": "three-transports",
+      "status": 200,
+      "result": {
+        "candidate": "양재역 3호선",
+        "metrics": {
+          "maxMinutes": 27.466666666666665,
+          "gapMinutes": 18.549999999999997,
+          "averageMinutes": 15.449999999999998
+        },
+        "routes": [
+          {
+            "participantId": "transit",
+            "status": "ok",
+            "transport": "transit",
+            "durationMinutes": 8.916666666666666,
+            "provider": "kakao-map"
+          },
+          {
+            "participantId": "car",
+            "status": "ok",
+            "transport": "car",
+            "durationMinutes": 9.966666666666667,
+            "provider": "kakao-mobility"
+          },
+          {
+            "participantId": "walk",
+            "status": "ok",
+            "transport": "walk",
+            "durationMinutes": 27.466666666666665,
+            "provider": "kakao-map"
+          }
+        ]
+      }
+    },
+    {
+      "label": "places:cafe",
+      "status": 200,
+      "count": 15,
+      "first": "하우 양재역점"
+    },
+    {
+      "label": "places:restaurant",
+      "status": 200,
+      "count": 15,
+      "first": "버거킹 양재점"
+    },
+    {
+      "label": "recommendations",
+      "status": 200,
+      "ranked": [
+        {
+          "candidate": "선릉역 수인분당선",
+          "metrics": {
+            "maxMinutes": 9.733333333333333,
+            "gapMinutes": 9.733333333333333,
+            "averageMinutes": 5.1611111111111105
+          },
+          "routes": [
+            {
+              "participantId": "transit",
+              "status": "ok",
+              "transport": "transit",
+              "durationMinutes": 5.75,
+              "provider": "kakao-map"
+            },
+            {
+              "participantId": "car",
+              "status": "ok",
+              "transport": "car",
+              "durationMinutes": 9.733333333333333,
+              "provider": "kakao-mobility"
+            },
+            {
+              "participantId": "walk",
+              "status": "ok",
+              "transport": "walk",
+              "durationMinutes": 0,
+              "provider": "same-location"
+            }
+          ]
+        },
+        {
+          "candidate": "한티역 수인분당선",
+          "metrics": {
+            "maxMinutes": 18.866666666666667,
+            "gapMinutes": 11.616666666666667,
+            "averageMinutes": 11.872222222222222
+          },
+          "routes": [
+            {
+              "participantId": "transit",
+              "status": "ok",
+              "transport": "transit",
+              "durationMinutes": 7.25,
+              "provider": "kakao-map"
+            },
+            {
+              "participantId": "car",
+              "status": "ok",
+              "transport": "car",
+              "durationMinutes": 9.5,
+              "provider": "kakao-mobility"
+            },
+            {
+              "participantId": "walk",
+              "status": "ok",
+              "transport": "walk",
+              "durationMinutes": 18.866666666666667,
+              "provider": "kakao-map"
+            }
+          ]
+        },
+        {
+          "candidate": "역삼역 2호선",
+          "metrics": {
+            "maxMinutes": 21.883333333333333,
+            "gapMinutes": 20.383333333333333,
+            "averageMinutes": 10.511111111111111
+          },
+          "routes": [
+            {
+              "participantId": "transit",
+              "status": "ok",
+              "transport": "transit",
+              "durationMinutes": 1.5,
+              "provider": "kakao-map"
+            },
+            {
+              "participantId": "car",
+              "status": "ok",
+              "transport": "car",
+              "durationMinutes": 8.15,
+              "provider": "kakao-mobility"
+            },
+            {
+              "participantId": "walk",
+              "status": "ok",
+              "transport": "walk",
+              "durationMinutes": 21.883333333333333,
+              "provider": "kakao-map"
+            }
+          ]
+        },
+        {
+          "candidate": "강남역 2호선",
+          "metrics": {
+            "maxMinutes": 33.11666666666667,
+            "gapMinutes": 33.11666666666667,
+            "averageMinutes": 13.755555555555555
+          },
+          "routes": [
+            {
+              "participantId": "transit",
+              "status": "ok",
+              "transport": "transit",
+              "durationMinutes": 0,
+              "provider": "same-location"
+            },
+            {
+              "participantId": "car",
+              "status": "ok",
+              "transport": "car",
+              "durationMinutes": 8.15,
+              "provider": "kakao-mobility"
+            },
+            {
+              "participantId": "walk",
+              "status": "ok",
+              "transport": "walk",
+              "durationMinutes": 33.11666666666667,
+              "provider": "kakao-map"
+            }
+          ]
+        },
+        {
+          "candidate": "매봉역 3호선",
+          "metrics": {
+            "maxMinutes": 42.15,
+            "gapMinutes": 37.666666666666664,
+            "averageMinutes": 19.233333333333334
+          },
+          "routes": [
+            {
+              "participantId": "transit",
+              "status": "ok",
+              "transport": "transit",
+              "durationMinutes": 11.066666666666666,
+              "provider": "kakao-map"
+            },
+            {
+              "participantId": "car",
+              "status": "ok",
+              "transport": "car",
+              "durationMinutes": 4.483333333333333,
+              "provider": "kakao-mobility"
+            },
+            {
+              "participantId": "walk",
+              "status": "ok",
+              "transport": "walk",
+              "durationMinutes": 42.15,
+              "provider": "kakao-map"
+            }
+          ]
+        },
+        {
+          "candidate": "신논현역 신분당선",
+          "metrics": {
+            "maxMinutes": 43.56666666666667,
+            "gapMinutes": 38.18333333333334,
+            "averageMinutes": 19.88888888888889
+          },
+          "routes": [
+            {
+              "participantId": "transit",
+              "status": "ok",
+              "transport": "transit",
+              "durationMinutes": 5.383333333333334,
+              "provider": "kakao-map"
+            },
+            {
+              "participantId": "car",
+              "status": "ok",
+              "transport": "car",
+              "durationMinutes": 10.716666666666667,
+              "provider": "kakao-mobility"
+            },
+            {
+              "participantId": "walk",
+              "status": "ok",
+              "transport": "walk",
+              "durationMinutes": 43.56666666666667,
+              "provider": "kakao-map"
+            }
+          ]
+        }
+      ],
+      "excluded": []
+    },
+    {
+      "label": "final-place-recheck",
+      "status": 200,
+      "result": {
+        "candidate": "하우 양재역점",
+        "metrics": {
+          "maxMinutes": 26.666666666666668,
+          "gapMinutes": 19.96666666666667,
+          "averageMinutes": 14.966666666666669
+        },
+        "routes": [
+          {
+            "participantId": "transit",
+            "status": "ok",
+            "transport": "transit",
+            "durationMinutes": 11.533333333333333,
+            "provider": "kakao-map"
+          },
+          {
+            "participantId": "car",
+            "status": "ok",
+            "transport": "car",
+            "durationMinutes": 6.7,
+            "provider": "kakao-mobility"
+          },
+          {
+            "participantId": "walk",
+            "status": "ok",
+            "transport": "walk",
+            "durationMinutes": 26.666666666666668,
+            "provider": "kakao-map"
+          }
+        ]
+      }
+    }
+  ]
+}
