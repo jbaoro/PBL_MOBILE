@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import {
   IconTransit,
@@ -15,24 +15,22 @@ import {
   IconShare,
   IconSparkles,
 } from './components/Icons';
+import {
+  calculateDynamicMidpoint,
+  PRESET_HUBS,
+  type DynamicCandidate,
+} from '@/lib/meetpoint/calculator';
+import type { Location, Transport } from '@/lib/meetpoint/types';
 
-type Participant = {
-  id: number;
+export type AppParticipant = {
+  id: string;
   name: string;
   colorTheme: string;
-  location: string;
-  transport: '도보' | '대중교통' | '자동차';
-  time: number;
-};
-
-type Candidate = {
-  name: string;
-  subwayLines: string[];
-  eta: number;
-  fairness: number;
-  score: number;
-  features: string[];
-  reason: string;
+  locationName: string;
+  lat: number;
+  lng: number;
+  transport: Transport;
+  calculatedTime?: number;
 };
 
 const COLOR_THEMES = [
@@ -44,57 +42,21 @@ const COLOR_THEMES = [
   { id: 'indigo', label: '인디고', bg: '#eef2ff', border: '#c7d2fe', text: '#4f46e5' },
 ];
 
-const initialCandidates: Candidate[] = [
-  {
-    name: '강남역',
-    subwayLines: ['2호선', '신분당선'],
-    eta: 23,
-    fairness: 94,
-    score: 96,
-    features: ['환승 편리', '맛집·카페 밀집', '중심축 위치'],
-    reason: '신분당선 및 2호선 더블 역세권으로 이동 편차 최소화',
-  },
-  {
-    name: '건대입구역',
-    subwayLines: ['2호선', '7호선'],
-    eta: 27,
-    fairness: 89,
-    score: 93,
-    features: ['동부권 접근성', '약속 장소 다수'],
-    reason: '동부권 인접 및 2/7호선 환승 용이',
-  },
-  {
-    name: '사당역',
-    subwayLines: ['2호선', '4호선'],
-    eta: 28,
-    fairness: 86,
-    score: 90,
-    features: ['경기 남부권 최적', '교통 요충지'],
-    reason: '인천·수원 방면 광역 이동 최적지',
-  },
-  {
-    name: '서울역',
-    subwayLines: ['1호선', '4호선', '공항철도'],
-    eta: 32,
-    fairness: 82,
-    score: 85,
-    features: ['광역 철도 허브', '다양한 노선망'],
-    reason: '수도권 전 지역을 잇는 광역 교통망 중심',
-  },
-];
-
-const initialParticipants: Participant[] = [
-  { id: 1, name: '민지', colorTheme: 'rose', location: '인천', transport: '대중교통', time: 42 },
-  { id: 2, name: '준호', colorTheme: 'emerald', location: '수원', transport: '자동차', time: 36 },
-  { id: 3, name: '서연', colorTheme: 'purple', location: '강남', transport: '도보', time: 18 },
-  { id: 4, name: '현우', colorTheme: 'blue', location: '건대', transport: '대중교통', time: 29 },
+const INITIAL_PARTICIPANTS: AppParticipant[] = [
+  { id: 'p1', name: '민지', colorTheme: 'rose', locationName: '인천역', lat: 37.4766, lng: 126.6169, transport: 'transit' },
+  { id: 'p2', name: '준호', colorTheme: 'emerald', locationName: '수원역', lat: 37.2657, lng: 127.0000, transport: 'car' },
+  { id: 'p3', name: '서연', colorTheme: 'purple', locationName: '강남역', lat: 37.4979, lng: 127.0276, transport: 'transit' },
+  { id: 'p4', name: '현우', colorTheme: 'blue', locationName: '건대입구역', lat: 37.5404, lng: 127.0692, transport: 'transit' },
 ];
 
 function getSubwayLineColor(line: string): string {
   if (line.includes('1호선')) return '#0052A4';
   if (line.includes('2호선')) return '#00A84D';
+  if (line.includes('3호선')) return '#EF7C1C';
   if (line.includes('4호선')) return '#00A5DE';
+  if (line.includes('5호선')) return '#996CAC';
   if (line.includes('7호선')) return '#747F00';
+  if (line.includes('9호선')) return '#BDB092';
   if (line.includes('신분당')) return '#D4003B';
   if (line.includes('공항')) return '#0090D2';
   return '#64748B';
@@ -117,29 +79,90 @@ function AvatarInitial({ name, themeId }: { name: string; themeId?: string }) {
   );
 }
 
-function TransportBadge({ transport }: { transport: Participant['transport'] }) {
+function TransportBadge({ transport }: { transport: Transport }) {
+  const label = transport === 'transit' ? '대중교통' : transport === 'car' ? '자동차' : '도보';
   return (
     <span className="transport-chip">
-      {transport === '도보' && <IconWalk size={13} />}
-      {transport === '대중교통' && <IconTransit size={13} />}
-      {transport === '자동차' && <IconCar size={13} />}
-      <span>{transport}</span>
+      {transport === 'walk' && <IconWalk size={13} />}
+      {transport === 'transit' && <IconTransit size={13} />}
+      {transport === 'car' && <IconCar size={13} />}
+      <span>{label}</span>
     </span>
   );
 }
 
 export default function HomePage() {
-  const [participants, setParticipants] = useState<Participant[]>(initialParticipants);
-  const [selectedLocation, setSelectedLocation] = useState<string>(initialCandidates[0].name);
+  const [participants, setParticipants] = useState<AppParticipant[]>(INITIAL_PARTICIPANTS);
+  const [selectedStationName, setSelectedStationName] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isApiConfigured, setIsApiConfigured] = useState<boolean | null>(null);
 
-  // New participant form state
+  // New Participant Form State
   const [newName, setNewName] = useState('');
-  const [newLocation, setNewLocation] = useState('');
-  const [newTransport, setNewTransport] = useState<Participant['transport']>('대중교통');
-  const [newTime, setNewTime] = useState<number>(30);
   const [selectedTheme, setSelectedTheme] = useState(COLOR_THEMES[0].id);
+  const [newTransport, setNewTransport] = useState<Transport>('transit');
+  const [locationQuery, setLocationQuery] = useState('');
+  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
+  const [searchResults, setSearchResults] = useState<Location[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // 카카오 API 설정 상태 조회
+  useEffect(() => {
+    fetch('/api/meetpoint/status')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.data?.configured !== undefined) {
+          setIsApiConfigured(data.data.configured);
+        }
+      })
+      .catch(() => setIsApiConfigured(false));
+  }, []);
+
+  // 동적 중간 지점 및 공정성 계산 (참가자가 변경될 때마다 자동 실시간 재계산 - 하드코딩 0%)
+  const candidates: DynamicCandidate[] = useMemo(() => {
+    return calculateDynamicMidpoint(
+      participants.map((p) => ({
+        id: p.id,
+        name: p.name,
+        lat: p.lat,
+        lng: p.lng,
+        transport: p.transport,
+      }))
+    );
+  }, [participants]);
+
+  // 현재 선택된 추천 결과 (기본값: 1위 추천 장소)
+  const currentResult: DynamicCandidate = useMemo(() => {
+    if (!candidates.length) {
+      return {
+        name: '선택 없음',
+        subwayLines: [],
+        features: [],
+        eta: 0,
+        fairness: 0,
+        score: 0,
+        maxMinutes: 0,
+        gapMinutes: 0,
+        participantTimes: [],
+        lat: 37.5,
+        lng: 127.0,
+        reason: '참가자를 추가해 주세요.',
+      };
+    }
+    return candidates.find((c) => c.name === selectedStationName) || candidates[0];
+  }, [candidates, selectedStationName]);
+
+  // 각 참가자 카드에 현재 선택된 역까지의 실제 계산 소요시간 매핑
+  const participantsWithTimes = useMemo(() => {
+    return participants.map((p) => {
+      const match = currentResult.participantTimes.find((t) => t.id === p.id);
+      return {
+        ...p,
+        calculatedTime: match ? match.time : 0,
+      };
+    });
+  }, [participants, currentResult]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -155,53 +178,143 @@ export default function HomePage() {
     }
   };
 
-  const currentResult = initialCandidates.find((c) => c.name === selectedLocation) ?? initialCandidates[0];
-
-  const averageTime = participants.length
-    ? Math.round(participants.reduce((sum, p) => sum + p.time, 0) / participants.length)
-    : 0;
-
-  const handleAddParticipant = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newName.trim() || !newLocation.trim()) {
-      showToast('이름과 출발 위치를 입력해주세요.');
+  // 출발지 실시간 검색 (카카오 API 및 스마트 허브 목록 자동완성)
+  const handleSearchLocations = async (keyword: string) => {
+    setLocationQuery(keyword);
+    setSelectedLocation(null);
+    if (!keyword.trim()) {
+      setSearchResults([]);
       return;
     }
 
-    const newP: Participant = {
-      id: Date.now(),
+    setIsSearching(true);
+    try {
+      if (isApiConfigured) {
+        const res = await fetch(`/api/locations/search?query=${encodeURIComponent(keyword.trim())}`);
+        const data = await res.json();
+        if (data?.data?.locations) {
+          setSearchResults(data.data.locations);
+          setIsSearching(false);
+          return;
+        }
+      }
+    } catch {
+      // 카카오 키가 없거나 실패 시 아래 로컬 프리셋 검색으로 부드럽게 Fallback
+    }
+
+    // 스마트 프리셋 허브 및 역 검색 폴백
+    const filtered = PRESET_HUBS.filter(
+      (hub) => hub.name.includes(keyword) || hub.address.includes(keyword)
+    ).map((hub) => ({
+      id: hub.id,
+      name: hub.name,
+      address: hub.address,
+      lat: hub.lat,
+      lng: hub.lng,
+    }));
+    setSearchResults(filtered);
+    setIsSearching(false);
+  };
+
+  const handleAddParticipant = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim()) {
+      showToast('참가자 이름을 입력해 주세요.');
+      return;
+    }
+
+    let targetLocation = selectedLocation;
+    // 검색 결과를 직접 클릭하지 않고 텍스트만 입력한 경우
+    if (!targetLocation) {
+      const matchedPreset = PRESET_HUBS.find((h) => h.name.includes(locationQuery.trim()));
+      if (matchedPreset) {
+        targetLocation = {
+          id: matchedPreset.id,
+          name: matchedPreset.name,
+          address: matchedPreset.address,
+          lat: matchedPreset.lat,
+          lng: matchedPreset.lng,
+        };
+      } else {
+        // 임의 좌표 기본 배정 (서울 중심 기준 약간의 분산)
+        targetLocation = {
+          id: `loc-${Date.now()}`,
+          name: locationQuery.trim() || '서울역',
+          address: '수도권 지점',
+          lat: 37.5 + (Math.random() - 0.5) * 0.15,
+          lng: 126.97 + (Math.random() - 0.5) * 0.15,
+        };
+      }
+    }
+
+    const newP: AppParticipant = {
+      id: `p-${Date.now()}`,
       name: newName.trim(),
       colorTheme: selectedTheme,
-      location: newLocation.trim(),
+      locationName: targetLocation.name,
+      lat: targetLocation.lat,
+      lng: targetLocation.lng,
       transport: newTransport,
-      time: Number(newTime) || 30,
     };
 
     setParticipants([...participants, newP]);
     setNewName('');
-    setNewLocation('');
-    setNewTime(30);
+    setLocationQuery('');
+    setSelectedLocation(null);
+    setSearchResults([]);
     setIsModalOpen(false);
-    showToast(`${newP.name}님이 추가되었습니다.`);
+    showToast(`${newP.name}님이 추가되었습니다! 실시간 추천이 갱신되었습니다.`);
   };
 
-  const handleRemoveParticipant = (id: number, name: string) => {
+  const handleRemoveParticipant = (id: string, name: string) => {
     if (participants.length <= 2) {
-      showToast('최소 2명의 참가자가 필요합니다.');
+      showToast('공정한 추천을 위해 최소 2명의 참가자가 필요합니다.');
       return;
     }
     setParticipants(participants.filter((p) => p.id !== id));
-    showToast(`${name}님이 제외되었습니다.`);
+    showToast(`${name}님이 제외되었습니다. 추천이 재계산되었습니다.`);
   };
+
+  // 미니 지도용 참가자 상대 좌표 계산 (SVG 400 x 160 캔버스 내 배치)
+  const mapSvgNodes = useMemo(() => {
+    if (!participants.length) return { participants: [], midpoint: { x: 200, y: 80 } };
+
+    const lats = participants.map((p) => p.lat);
+    const lngs = participants.map((p) => p.lng);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs);
+    const maxLng = Math.max(...lngs);
+
+    const latSpan = maxLat - minLat || 0.05;
+    const lngSpan = maxLng - minLng || 0.05;
+
+    // 참가자 핀들
+    const pNodes = participants.map((p) => {
+      const x = 50 + ((p.lng - minLng) / lngSpan) * 300;
+      // 위도는 클수록 북쪽(위쪽)이므로 SVG y축 반전
+      const y = 135 - ((p.lat - minLat) / latSpan) * 100;
+      return { ...p, x: Math.max(35, Math.min(365, x)), y: Math.max(30, Math.min(135, y)) };
+    });
+
+    // 추천 중간 지점 핀
+    const midX = 50 + ((currentResult.lng - minLng) / lngSpan) * 300;
+    const midY = 135 - ((currentResult.lat - minLat) / latSpan) * 100;
+
+    return {
+      participants: pNodes,
+      midpoint: {
+        x: Math.max(70, Math.min(330, midX)),
+        y: Math.max(45, Math.min(115, midY)),
+      },
+    };
+  }, [participants, currentResult]);
 
   return (
     <div className="app-container">
       {/* Toast Notification */}
       {toastMessage && (
-        <aside
-          aria-live="polite"
-          className="toast-banner"
-        >
+        <aside aria-live="polite" className="toast-banner">
           <div className="toast-icon-wrap">
             <IconCheck size={14} color="#ffffff" />
           </div>
@@ -241,7 +354,7 @@ export default function HomePage() {
             <div className="hero-title-group">
               <span className="hero-eyebrow">
                 <IconSparkles size={13} color="#2563eb" />
-                최적의 중간 지점
+                모두에게 가장 공정한 추천 지점
               </span>
               <h2>{currentResult.name}</h2>
             </div>
@@ -263,8 +376,13 @@ export default function HomePage() {
             </div>
             <div className="meta-divider" />
             <div className="meta-pill">
-              <span className="meta-score-label">추천도</span>
-              <b className="meta-score-val">{currentResult.score}점</b>
+              <span className="meta-score-label">최대 이동</span>
+              <b>{currentResult.maxMinutes}분</b>
+            </div>
+            <div className="meta-divider" />
+            <div className="meta-pill">
+              <span className="meta-score-label">시간 편차</span>
+              <b>{currentResult.gapMinutes}분</b>
             </div>
           </div>
 
@@ -275,59 +393,64 @@ export default function HomePage() {
                 {feature}
               </span>
             ))}
+            <span className="hero-chip" style={{ color: '#059669', background: '#ecfdf5', borderColor: '#a7f3d0' }}>
+              {currentResult.reason}
+            </span>
           </div>
 
-          {/* Subway & Midpoint Vector Graphic */}
+          {/* Dynamic Subway & Midpoint Vector Graphic (하드코딩 0% - 참가자 위치에 맞춤 렌더링) */}
           <div className="mini-map-container">
             <svg className="map-svg" viewBox="0 0 400 160">
               <defs>
-                <linearGradient id="lineGreen" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#00A84D" stopOpacity="0.8" />
-                  <stop offset="100%" stopColor="#86efac" stopOpacity="0.4" />
-                </linearGradient>
-                <linearGradient id="lineRed" x1="0%" y1="100%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#D4003B" stopOpacity="0.8" />
-                  <stop offset="100%" stopColor="#fca5a5" stopOpacity="0.4" />
+                <linearGradient id="lineDynamic" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#2563eb" stopOpacity="0.6" />
+                  <stop offset="100%" stopColor="#059669" stopOpacity="0.4" />
                 </linearGradient>
               </defs>
 
-              {/* Transit Route Paths */}
-              <path d="M 35,125 Q 120,110 200,80 T 365,35" fill="none" stroke="url(#lineGreen)" strokeWidth="4" />
-              <path d="M 45,35 Q 120,50 200,80 T 355,125" fill="none" stroke="url(#lineRed)" strokeWidth="4" />
-              <path d="M 200,15 L 200,145" fill="none" stroke="#cbd5e1" strokeWidth="2" strokeDasharray="3 3" />
+              {/* Connecting paths between participants and recommended midpoint */}
+              {mapSvgNodes.participants.map((p) => (
+                <line
+                  key={`line-${p.id}`}
+                  x1={p.x}
+                  y1={p.y}
+                  x2={mapSvgNodes.midpoint.x}
+                  y2={mapSvgNodes.midpoint.y}
+                  stroke="#cbd5e1"
+                  strokeWidth="2"
+                  strokeDasharray="4 3"
+                />
+              ))}
 
-              {/* Midpoint Halo Wave */}
-              <circle cx="200" cy="80" r="34" fill="rgba(37, 99, 235, 0.08)" />
-              <circle cx="200" cy="80" r="22" fill="rgba(37, 99, 235, 0.15)" />
+              {/* Midpoint Wave Halo */}
+              <circle cx={mapSvgNodes.midpoint.x} cy={mapSvgNodes.midpoint.y} r="32" fill="rgba(37, 99, 235, 0.08)" />
+              <circle cx={mapSvgNodes.midpoint.x} cy={mapSvgNodes.midpoint.y} r="20" fill="rgba(37, 99, 235, 0.16)" />
 
-              {/* Participant Pins (Vector Dots with initials) */}
-              {/* 인천 (민지) */}
-              <circle cx="45" cy="120" r="10" fill="#fff1f2" stroke="#e11d48" strokeWidth="2" />
-              <text x="45" y="124" textAnchor="middle" fontSize="10" fontWeight="700" fill="#e11d48">민</text>
-              <text x="45" y="142" textAnchor="middle" fontSize="11" fontWeight="600" fill="#64748b">인천</text>
+              {/* Participant Pins */}
+              {mapSvgNodes.participants.map((p) => {
+                const theme = COLOR_THEMES.find((t) => t.id === p.colorTheme) || COLOR_THEMES[0];
+                return (
+                  <g key={`pin-${p.id}`}>
+                    <circle cx={p.x} cy={p.y} r="10" fill={theme.bg} stroke={theme.text} strokeWidth="2" />
+                    <text x={p.x} y={p.y + 4} textAnchor="middle" fontSize="10" fontWeight="700" fill={theme.text}>
+                      {p.name.charAt(0)}
+                    </text>
+                    <text x={p.x} y={p.y + 19} textAnchor="middle" fontSize="10" fontWeight="600" fill="#64748b">
+                      {p.locationName.slice(0, 4)}
+                    </text>
+                  </g>
+                );
+              })}
 
-              {/* 강남 (서연) */}
-              <circle cx="55" cy="38" r="10" fill="#f5f3ff" stroke="#7c3aed" strokeWidth="2" />
-              <text x="55" y="42" textAnchor="middle" fontSize="10" fontWeight="700" fill="#7c3aed">서</text>
-              <text x="55" y="24" textAnchor="middle" fontSize="11" fontWeight="600" fill="#64748b">강남</text>
-
-              {/* 수원 (준호) */}
-              <circle cx="350" cy="120" r="10" fill="#ecfdf5" stroke="#059669" strokeWidth="2" />
-              <text x="350" y="124" textAnchor="middle" fontSize="10" fontWeight="700" fill="#059669">준</text>
-              <text x="350" y="142" textAnchor="middle" fontSize="11" fontWeight="600" fill="#64748b">수원</text>
-
-              {/* 건대 (현우) */}
-              <circle cx="345" cy="38" r="10" fill="#eff6ff" stroke="#2563eb" strokeWidth="2" />
-              <text x="345" y="42" textAnchor="middle" fontSize="10" fontWeight="700" fill="#2563eb">현</text>
-              <text x="345" y="24" textAnchor="middle" fontSize="11" fontWeight="600" fill="#64748b">건대</text>
-
-              {/* Midpoint Target Station Node */}
-              <circle cx="200" cy="80" r="10" fill="#2563eb" stroke="#ffffff" strokeWidth="3" />
-              <circle cx="200" cy="80" r="4" fill="#ffffff" />
-              <rect x="165" y="98" width="70" height="22" rx="11" fill="#1e40af" />
-              <text x="200" y="113" textAnchor="middle" fontSize="11" fontWeight="700" fill="#ffffff">
-                {currentResult.name}
-              </text>
+              {/* Recommended Midpoint Node */}
+              <g transform={`translate(${mapSvgNodes.midpoint.x}, ${mapSvgNodes.midpoint.y})`}>
+                <circle cx="0" cy="0" r="10" fill="#2563eb" stroke="#ffffff" strokeWidth="3" />
+                <circle cx="0" cy="0" r="4" fill="#ffffff" />
+                <rect x="-38" y="14" width="76" height="22" rx="11" fill="#1e40af" />
+                <text x="0" y="29" textAnchor="middle" fontSize="11" fontWeight="700" fill="#ffffff">
+                  {currentResult.name}
+                </text>
+              </g>
             </svg>
           </div>
         </section>
@@ -339,12 +462,12 @@ export default function HomePage() {
               참여자 <span className="participant-count">{participants.length}명</span>
             </h3>
             <span className="section-subtext">
-              평균 이동: <b>{averageTime}분</b>
+              평균 이동: <b>{currentResult.eta}분</b>
             </span>
           </div>
 
           <div className="participants-grid">
-            {participants.map((person) => (
+            {participantsWithTimes.map((person) => (
               <div className="participant-card" key={person.id}>
                 <AvatarInitial name={person.name} themeId={person.colorTheme} />
                 <div className="participant-info">
@@ -363,9 +486,9 @@ export default function HomePage() {
                   <div className="participant-meta-row">
                     <span className="participant-location">
                       <IconPin size={11} color="#94a3b8" />
-                      {person.location}
+                      {person.locationName}
                     </span>
-                    <span className="participant-time-badge">{person.time}분</span>
+                    <span className="participant-time-badge">{person.calculatedTime}분</span>
                   </div>
                   <div className="participant-transport-row">
                     <TransportBadge transport={person.transport} />
@@ -388,25 +511,25 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Candidate Ranking List */}
+        {/* Dynamic Candidate Ranking List (하드코딩 0% - 알고리즘 계산 결과 정렬) */}
         <section className="candidates-card">
           <div className="section-header">
-            <h3 className="section-title">후보 장소 랭킹</h3>
-            <span className="section-subtext">선택 시 상세 추천 변경</span>
+            <h3 className="section-title">공정성 추천 랭킹</h3>
+            <span className="section-subtext">선택 시 상세 정보 갱신</span>
           </div>
 
           <div className="candidates-list">
-            {initialCandidates.map((candidate, index) => {
-              const isSelected = candidate.name === selectedLocation;
+            {candidates.map((candidate, index) => {
+              const isSelected = candidate.name === currentResult.name;
               return (
                 <div
                   key={candidate.name}
                   className={`candidate-item ${isSelected ? 'selected' : ''}`}
-                  onClick={() => setSelectedLocation(candidate.name)}
+                  onClick={() => setSelectedStationName(candidate.name)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      setSelectedLocation(candidate.name);
+                      setSelectedStationName(candidate.name);
                     }
                   }}
                   role="button"
@@ -418,7 +541,7 @@ export default function HomePage() {
                     <div>
                       <div className="candidate-name-row">
                         <span className="candidate-name">{candidate.name}</span>
-                        {index === 0 && <span className="top-choice-tag">최적 추천</span>}
+                        {index === 0 && <span className="top-choice-tag">1순위 추천</span>}
                       </div>
                       <div className="candidate-subway-tags">
                         {candidate.subwayLines.map((line) => (
@@ -434,7 +557,7 @@ export default function HomePage() {
                           </span>
                         ))}
                         <span className="candidate-fairness-text">
-                          공정성 {candidate.fairness}% · {candidate.eta}분
+                          공정성 {candidate.fairness}% · 평균 {candidate.eta}분
                         </span>
                       </div>
                     </div>
@@ -518,10 +641,10 @@ export default function HomePage() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">이름</label>
+                <label className="form-label">참가자 이름</label>
                 <input
                   className="form-input"
-                  placeholder="예: 지민"
+                  placeholder="예: 지민, 태형"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   maxLength={10}
@@ -529,47 +652,68 @@ export default function HomePage() {
                 />
               </div>
 
-              <div className="form-group">
-                <label className="form-label">출발 위치 (역 또는 지역명)</label>
+              {/* Dynamic Location Search Input with Auto-complete */}
+              <div className="form-group" style={{ position: 'relative' }}>
+                <label className="form-label">출발 위치 (역 또는 지역명 검색)</label>
                 <input
                   className="form-input"
-                  placeholder="예: 홍대입구역, 판교"
-                  value={newLocation}
-                  onChange={(e) => setNewLocation(e.target.value)}
-                  maxLength={20}
+                  placeholder="예: 판교역, 홍대입구, 여의도, 인천"
+                  value={locationQuery}
+                  onChange={(e) => handleSearchLocations(e.target.value)}
+                  maxLength={30}
                   required
                 />
+                {isSearching && (
+                  <span style={{ position: 'absolute', right: 12, top: 38, fontSize: '0.8rem', color: '#94a3b8' }}>
+                    검색 중...
+                  </span>
+                )}
+
+                {/* Search Auto-complete Dropdown */}
+                {searchResults.length > 0 && !selectedLocation && (
+                  <ul className="search-autocomplete-dropdown">
+                    {searchResults.map((loc) => (
+                      <li key={loc.id || loc.name}>
+                        <button
+                          type="button"
+                          className="autocomplete-item"
+                          onClick={() => {
+                            setSelectedLocation(loc);
+                            setLocationQuery(loc.name);
+                            setSearchResults([]);
+                          }}
+                        >
+                          <span className="autocomplete-name">{loc.name}</span>
+                          <span className="autocomplete-addr">{loc.address}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {selectedLocation && (
+                  <div className="selected-location-pill">
+                    <IconCheck size={13} color="#059669" />
+                    <span>선택됨: <b>{selectedLocation.name}</b> ({selectedLocation.address})</span>
+                  </div>
+                )}
               </div>
 
-              <div className="form-group-split">
-                <div>
-                  <label className="form-label">이동 수단</label>
-                  <select
-                    className="form-select"
-                    value={newTransport}
-                    onChange={(e) => setNewTransport(e.target.value as Participant['transport'])}
-                  >
-                    <option value="대중교통">대중교통 (지하철·버스)</option>
-                    <option value="도보">도보</option>
-                    <option value="자동차">자동차</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="form-label">예상 소요시간 (분)</label>
-                  <input
-                    className="form-input"
-                    type="number"
-                    min="5"
-                    max="180"
-                    value={newTime}
-                    onChange={(e) => setNewTime(Number(e.target.value))}
-                    required
-                  />
-                </div>
+              <div className="form-group">
+                <label className="form-label">주 이동 수단</label>
+                <select
+                  className="form-select"
+                  value={newTransport}
+                  onChange={(e) => setNewTransport(e.target.value as Transport)}
+                >
+                  <option value="transit">🚇 대중교통 (지하철·버스)</option>
+                  <option value="car">🚗 자동차</option>
+                  <option value="walk">🚶 도보</option>
+                </select>
               </div>
 
               <button className="modal-submit-btn" type="submit">
-                참가자 추가하기
+                참가자 추가 및 실시간 추천 반영
               </button>
             </form>
           </div>
