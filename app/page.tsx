@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import {
   IconTransit,
   IconWalk,
@@ -219,6 +220,13 @@ export default function HomePage() {
           MeetPoint
         </div>
         <div className="top-bar-actions">
+          <Link href="/planner" className="planner-link-btn" title="실제 카카오 경로 플래너로 이동">
+            <span>실시간 플래너</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M5 12h14" />
+              <path d="M12 5l7 7-7 7" />
+            </svg>
+          </Link>
           <button className="icon-btn" type="button" onClick={handleShare} aria-label="약속 공유하기">
             <IconShare size={19} />
           </button>
