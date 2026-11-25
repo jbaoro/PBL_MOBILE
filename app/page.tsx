@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import FlowLayout, { FlowLoading, flowStyles } from '@/components/flow/FlowLayout';
 import { meetingPath, meetingStatus, resumeStep, type MeetingDraft, type MeetingStatus } from '@/features/meeting/model';
+import { scheduleText } from '@/features/meeting/share';
 import { meetingActions, useMeetingList, useMeetingStore } from '@/features/meeting/store';
 import styles from './home.module.css';
 
@@ -13,10 +14,7 @@ const statusLabel: Record<MeetingStatus, string> = {
 };
 
 function formatSchedule(value?: string): string | null {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', hour: 'numeric', minute: '2-digit' });
+  return scheduleText(value);
 }
 
 function MeetingCard({ meeting }: { meeting: MeetingDraft }) {

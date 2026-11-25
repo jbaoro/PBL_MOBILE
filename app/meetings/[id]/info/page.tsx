@@ -38,7 +38,8 @@ export default function MeetingInfoPage({ params }: { params: { id: string } }) 
     event.preventDefault();
     setTouched(true);
     if (titleError || timeError) return;
-    meetingActions.updateInfo(params.id, { title, scheduledAt: date ? `${date}T${time || '00:00'}` : undefined });
+    // 시간을 비우면 날짜만 저장한다(시간 미정). 자정(00:00)과 구분하기 위해서.
+    meetingActions.updateInfo(params.id, { title, scheduledAt: date ? (time ? `${date}T${time}` : date) : undefined });
     router.push(meetingPath(params.id, 'participants'));
   }
 
