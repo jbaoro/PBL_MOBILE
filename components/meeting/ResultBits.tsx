@@ -1,5 +1,9 @@
 'use client';
-// 추천 결과 표시 조각: 미니 지도, 참가자별 이동시간 막대
+/**
+ * 추천 결과 표시 조각 (3단계 추천 지역, 5단계 장소 확인, 6단계 확정에서 사용)
+ * - MiniMap: 출발지와 후보의 위치 관계 그림 (실제 지도·경로 아님)
+ * - TravelTimeList: 참가자별 이동시간 막대
+ */
 import { COLOR_THEMES, AvatarInitial, TransportIcon } from './ParticipantBits';
 import { minutesText, projectPoints } from '@/features/meeting/display';
 import type { MeetingParticipant } from '@/features/meeting/model';
@@ -10,6 +14,7 @@ import styles from './meeting.module.css';
 export function MiniMap({ people, destination }: { people: MeetingParticipant[]; destination: Location }) {
   const width = 400;
   const height = 170;
+  // 마지막 점이 후보 지점. 나머지는 참가자 출발지 순서와 같다.
   const points = projectPoints([...people.map((person) => person.origin), destination], width, height, 34);
   const target = points[points.length - 1];
   return (
@@ -46,6 +51,7 @@ export function MiniMap({ people, destination }: { people: MeetingParticipant[];
 
 /** 참가자별 이동시간: 가장 오래 걸리는 사람 기준 막대 + 실패 사유 + 상세 경로 링크 */
 export function TravelTimeList({ people, routes }: { people: MeetingParticipant[]; routes: RouteResult[] }) {
+  // 막대 길이는 가장 오래 걸리는 사람을 100%로 잡는다. 그 사람은 주황색으로 강조한다.
   const longest = Math.max(1, ...routes.map((route) => (route.status === 'ok' ? route.durationMinutes : 0)));
   return (
     <ul className={styles.times}>

@@ -1,5 +1,14 @@
 'use client';
-// 6. 확정 완료: 약속 요약 + 공유(휴대폰 공유 시트 → 안 되면 복사) + 복사 + 캘린더 추가
+/**
+ * 6단계. 약속 확정·공유 (`/meetings/[id]/done`)
+ *
+ * - 공유하기: 휴대폰 공유 시트(카톡·문자 등)로 약속 요약 글을 보낸다. 공유 시트가 없는 PC에서는 자동으로 복사한다.
+ * - 복사: 요약 글만 복사한다.
+ * - 지도 보기·길찾기: 카카오맵 링크 (받는 사람의 현재 위치에서 길찾기가 열린다)
+ * - 캘린더에 추가: .ics 일정 파일 (날짜를 입력한 경우에만)
+ * 공유 글·일정 내용은 features/meeting/share.ts 에서 만든다. 출발지 주소는 개인정보라 넣지 않는다.
+ * 실제 공유·복사·파일 저장은 lib/platform/share.ts 어댑터를 거친다. (앱 전환 시 교체 지점)
+ */
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { IconCheck, IconClock, IconPhone, IconPin, IconShare } from '@/app/components/Icons';
@@ -14,7 +23,7 @@ import { copyText, saveFile, shareText } from '@/lib/platform/share';
 
 export default function DonePage({ params }: { params: { id: string } }) {
   const { meeting } = useMeetingStep(params.id, 'done');
-  const [status, setStatus] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null); // 화면 아래 잠깐 뜨는 알림 문구
   const timer = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => () => clearTimeout(timer.current), []);
 
@@ -24,12 +33,14 @@ export default function DonePage({ params }: { params: { id: string } }) {
   const when = scheduleText(meeting.scheduledAt);
   const text = buildShareText(meeting);
 
+  /** 알림을 3초 동안 보여준다. */
   function notify(message: string) {
     setStatus(message);
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setStatus(null), 3000);
   }
 
+  /** 공유 시트 → 실패·미지원이면 복사. 사용자가 공유 창을 닫은 경우(cancelled)는 알리지 않는다. */
   async function share() {
     const outcome = await shareText(text, meeting?.title || '약속');
     if (outcome === 'copied') notify('공유 창을 열 수 없어 약속 내용을 복사했어요. 단톡방에 붙여 넣어 주세요.');
@@ -40,6 +51,7 @@ export default function DonePage({ params }: { params: { id: string } }) {
     notify((await copyText(text)) ? '약속 내용을 복사했어요.' : '복사하지 못했어요. 아래 미리보기 내용을 직접 복사해 주세요.');
   }
 
+  /** .ics 파일 만들기 → 휴대폰은 공유 시트로 파일 전달, PC는 내려받기 */
   async function addToCalendar() {
     if (!meeting) return;
     const ics = buildIcs(meeting, new Date());

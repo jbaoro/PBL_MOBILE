@@ -1,3 +1,7 @@
+/**
+ * 서버와 화면이 함께 쓰는 데이터 형식 (API 계약).
+ * 좌표는 WGS84(lat 위도, lng 경도), 시간은 반올림하지 않은 분, 거리는 m.
+ */
 export type Transport = 'transit' | 'car' | 'walk';
 export type Coordinates = { lat: number; lng: number };
 export type Location = Coordinates & {
@@ -7,6 +11,7 @@ export type Location = Coordinates & {
   category?: string;
   url?: string;
 };
+/** 참가자: 출발지(검색 결과에서 고른 장소)와 이동수단 */
 export type Participant = {
   id: string;
   name: string;
@@ -17,6 +22,7 @@ export type ApiErrorCode =
   | 'INVALID_INPUT' | 'NOT_CONFIGURED' | 'PROVIDER_AUTH' | 'QUOTA_EXCEEDED'
   | 'TIMEOUT' | 'UPSTREAM_ERROR' | 'NO_ROUTE' | 'NO_CANDIDATES' | 'BUSY';
 export type PublicError = { code: ApiErrorCode; message: string; retryable: boolean };
+/** 경로 조회 성공. timeBasis: 'query-time' = 조회한 시점 기준 예상 시간 (약속 시각 예측 아님) */
 export type RouteSuccess = {
   status: 'ok';
   participantId: string;
@@ -35,7 +41,9 @@ export type RouteFailure = {
   destinationId: string;
   error: PublicError;
 };
+/** 참가자 한 명 → 목적지 한 곳 결과. 실패도 결과에 남겨 제외 사유를 보여줄 수 있게 한다. */
 export type RouteResult = RouteSuccess | RouteFailure;
+/** 공정성 지표 (ranking.ts 참고) */
 export type Metrics = { maxMinutes: number; gapMinutes: number; averageMinutes: number };
 /** 후보를 찾은 지역: 참가자 사이 / 참가자 출발지 주변 / 후보가 부족해 넓혀 찾은 지역 */
 export type CandidateSource = 'between' | 'origin' | 'expanded';
@@ -68,6 +76,7 @@ export type SearchScope = {
   apiCalls: number;             // 이번 추천에 사용한 외부 API 호출 수
   limited: boolean;             // 호출 수·시간 제한 때문에 탐색을 줄였는지
 };
+/** 추천 결과: 순위 후보(ranked), 경로 실패가 있어 제외된 후보(excluded), 검색 범위, 안내 문구 */
 export type RecommendationResult = {
   ranked: CandidateResult[];
   excluded: CandidateResult[];
@@ -84,4 +93,5 @@ export type Place = Location & {
   distanceMeters?: number;
 };
 export type PlacePage = { places: Place[]; page: number; hasNext: boolean };
+/** 모든 API 응답 형식 */
 export type ApiResponse<T> = { data: T } | { error: PublicError };

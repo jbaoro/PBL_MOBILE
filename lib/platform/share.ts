@@ -1,5 +1,9 @@
-// 복사·공유 어댑터. 앱에서는 expo-clipboard / Share API 구현으로 바꾼다.
+/**
+ * 복사·공유·파일 저장 어댑터. 화면에서는 브라우저 API(navigator.share 등)를 직접 쓰지 않고 이 파일을 쓴다.
+ * 앱(React Native)으로 옮길 때는 expo-clipboard / Share / expo-sharing 구현으로 이 파일만 바꾼다.
+ */
 
+/** 클립보드 복사. 보안 연결(https·localhost)이 아니면 예전 방식(execCommand)으로 한 번 더 시도한다. */
 export async function copyText(text: string): Promise<boolean> {
   try {
     if (typeof navigator !== 'undefined' && navigator.clipboard && window.isSecureContext) {
@@ -23,6 +27,7 @@ export async function copyText(text: string): Promise<boolean> {
   }
 }
 
+/** shared: 공유 창으로 보냄 / copied: 공유 창이 없어 복사함 / cancelled: 사용자가 닫음 / failed: 둘 다 실패 */
 export type ShareOutcome = 'shared' | 'copied' | 'cancelled' | 'failed';
 
 /** 기기의 공유 시트를 열고, 지원하지 않으면 클립보드에 복사한다. */

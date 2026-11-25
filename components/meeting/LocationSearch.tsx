@@ -1,6 +1,12 @@
 'use client';
-// 출발지 검색: 입력을 잠시 멈추면 자동 검색하고, 결과에서 하나를 골라야 선택된다.
-// (가짜 프리셋으로 대체하지 않고, 실패하면 이유를 그대로 보여준다)
+/**
+ * 출발지 검색 입력칸 (2단계-1 참가자 추가·수정에서 사용)
+ *
+ * - 2글자 이상 입력하고 0.35초 멈추면 /api/locations/search 로 자동 검색한다. (타자마다 호출하지 않음)
+ * - 새로 입력하면 진행 중인 검색은 취소하고, 이전에 고른 출발지도 선택 해제한다.
+ * - 결과에서 하나를 골라야 선택된다. Enter 를 누르면 첫 번째 결과를 고른다.
+ * - 가짜 프리셋으로 대체하지 않고, 실패하면 이유를 그대로 보여준다.
+ */
 import { useEffect, useRef, useState } from 'react';
 import { IconCheck, IconPin } from '@/app/components/Icons';
 import { ApiError, isAbort, meetpointApi } from '@/lib/api/client';
@@ -24,6 +30,7 @@ export default function LocationSearch({ id, value, invalid, onChange }: Props) 
 
   useEffect(() => () => { controller.current?.abort(); clearTimeout(timer.current); }, []);
 
+  /** 검색 실행. 이전 요청을 취소하고, 늦게 도착한(취소된) 응답은 무시한다. */
   async function search(text: string) {
     controller.current?.abort();
     const request = new AbortController();
@@ -45,6 +52,7 @@ export default function LocationSearch({ id, value, invalid, onChange }: Props) 
     }
   }
 
+  /** 입력이 바뀔 때마다: 선택 해제 → 진행 중 검색 취소 → 잠시 뒤 검색 예약 */
   function handleInput(text: string) {
     setQuery(text);
     if (value) onChange(undefined);
@@ -56,6 +64,7 @@ export default function LocationSearch({ id, value, invalid, onChange }: Props) 
     timer.current = setTimeout(() => void search(text.trim()), 350);
   }
 
+  /** 결과 선택: 예약·진행 중인 검색을 멈추고 선택값을 부모에게 알린다. */
   function choose(location: Location) {
     clearTimeout(timer.current);
     controller.current?.abort();

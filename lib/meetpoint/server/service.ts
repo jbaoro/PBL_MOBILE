@@ -1,3 +1,15 @@
+/**
+ * 추천 흐름 (POST /api/recommendations 의 본체)
+ *
+ * 1. 거리 구분: 출발지 사이 최대 거리로 근거리(≤25km)·중거리(≤80km)·장거리
+ * 2. 검색 지역 정하기: 근거리는 중간 지역 지하철역, 중거리는 3곳의 역·터미널,
+ *    장거리는 중간 지역 + 각 출발지 주변 기차역·버스터미널
+ * 3. 후보 모으기 → 이동수단별 대략 속도로 6곳까지 압축 (압축에만 쓰고 표시·순위에는 안 씀)
+ * 4. 모든 참가자의 실제 경로 조회 → ranking.ts 기준으로 순위
+ * 5. 비교 가능한 후보가 3곳 미만이면 범위를 넓히고 경로가 자주 실패한 참가자 쪽을 더 찾아 최대 4곳 추가
+ * 6. 추천 이유·제외 사유·검색 범위를 붙여서 돌려준다.
+ * 전 과정은 CallBudget 으로 호출 수(100)·동시 요청(4)·새 탐색 마감(40초)을 지킨다.
+ */
 import { MeetPointError, publicError } from '../errors';
 import { centroid, distanceMeters } from '../geo';
 import { calculateMetrics, rankCandidates } from '../ranking';

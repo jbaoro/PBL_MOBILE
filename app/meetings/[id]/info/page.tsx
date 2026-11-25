@@ -1,5 +1,11 @@
 'use client';
-// 1. 모임 정보: 모임 이름(필수), 날짜·시간(선택)
+/**
+ * 1단계. 모임 정보 (`/meetings/[id]/info`)
+ *
+ * - 모임 이름: 필수, 최대 40자. 약속 목록·공유 글·캘린더 제목에 쓰인다.
+ * - 날짜·시간: 선택. 시간만 넣고 날짜를 비우는 건 막는다.
+ * 모임 정보는 이동시간 계산에 영향을 주지 않으므로, 바꿔도 이후 추천 결과는 그대로 둔다.
+ */
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import FlowLayout, { FlowLoading, flowStyles } from '@/components/flow/FlowLayout';
@@ -16,8 +22,8 @@ export default function MeetingInfoPage({ params }: { params: { id: string } }) 
   const [title, setTitle] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
-  const [touched, setTouched] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [touched, setTouched] = useState(false); // '다음'을 한 번 누른 뒤부터 오류 문구를 보여준다
+  const [loaded, setLoaded] = useState(false);   // 저장된 값으로 입력칸을 채웠는지
 
   // 저장된 값으로 한 번만 채운다.
   useEffect(() => {
@@ -34,6 +40,7 @@ export default function MeetingInfoPage({ params }: { params: { id: string } }) 
   const titleError = !title.trim() ? '모임 이름을 입력해 주세요.' : null;
   const timeError = time && !date ? '시간을 정하려면 날짜도 골라 주세요.' : null;
 
+  /** 검증 → 저장 → 2단계(참가자)로 이동 */
   function next(event: React.FormEvent) {
     event.preventDefault();
     setTouched(true);
