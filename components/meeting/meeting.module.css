@@ -114,3 +114,62 @@
 }
 .colorDot { width: 18px; height: 18px; border-radius: 50%; }
 .colorChip[aria-pressed='true'] { box-shadow: 0 0 0 2px #fff, 0 0 0 4px currentColor; }
+
+/* 3. 추천 지역 */
+.running { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 72px 8px; }
+.running h2 { font-size: 20px; font-weight: 800; margin-top: 8px; }
+.running p { color: var(--text-sub); font-size: 14.5px; }
+.runningHint { font-size: 13px !important; color: var(--text-muted) !important; }
+.bigSpinner { width: 44px; height: 44px; border: 4px solid #e2e8f0; border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.failure { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 48px 12px; }
+.failure h2 { font-size: 18px; font-weight: 800; }
+.failure p { color: var(--text-sub); font-size: 14px; }
+
+.headerAction { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: transparent; color: var(--text-sub); }
+.headerAction:active { background: #f1f5f9; }
+
+.resultMeta { margin: -4px 0 14px; font-size: 12.5px; color: var(--text-sub); }
+.heroAddress { margin-top: 2px; font-size: 13px; color: var(--text-sub); }
+.balanceHint { margin: -4px 0 12px; font-size: 12px; color: var(--text-muted); }
+.mapFigure { margin: 14px 0 0; }
+.mapCaption { margin-top: 6px; font-size: 11px; color: var(--text-muted); text-align: center; }
+
+.candidateButton { width: 100%; text-align: left; font: inherit; color: inherit; min-height: 60px; }
+.candidateText { display: flex; flex-direction: column; gap: 3px; }
+.sourceTag { margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: #f1f5f9; color: var(--text-sub); font-size: 11px; font-weight: 700; }
+.rule { margin-top: 10px; font-size: 12px; color: var(--text-muted); }
+
+.detail { margin-top: 16px; padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: #fff; }
+.detail h3 { font-size: 16px; font-weight: 800; margin-bottom: 10px; }
+.subTitle { margin: 16px 0 10px; font-size: 14px; font-weight: 700; }
+.reasons { list-style: none; display: flex; flex-direction: column; gap: 7px; font-size: 14px; }
+.reasons li { display: flex; gap: 7px; align-items: flex-start; }
+.reasons li svg { flex: none; margin-top: 4px; }
+
+.times { list-style: none; display: flex; flex-direction: column; gap: 14px; }
+.timeRow { display: flex; gap: 10px; align-items: flex-start; }
+.timeBody { flex: 1; min-width: 0; }
+.timeHead { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.timeHead b { margin-left: auto; font-size: 15px; }
+.timeMode { display: inline-flex; color: var(--text-muted); }
+.timeLongest { color: #d97706; }
+.timeFail { color: #dc2626; }
+.track { height: 7px; margin-top: 6px; border-radius: 999px; background: #f1f5f9; overflow: hidden; }
+.track span { display: block; height: 100%; border-radius: 999px; background: var(--primary); }
+.track .trackLongest { background: #f59e0b; }
+.timeError { margin-top: 4px; font-size: 12.5px; color: #dc2626; }
+.routeLink { display: inline-block; margin-top: 4px; font-size: 12.5px; color: var(--primary); font-weight: 600; text-decoration: none; }
+
+.more { margin-top: 14px; padding: 13px 15px; border: 1px solid var(--border); border-radius: 12px; font-size: 13.5px; }
+.more summary { cursor: pointer; font-weight: 700; color: var(--text-sub); min-height: 24px; }
+.more ul { list-style: none; margin: 12px 0 8px; display: flex; flex-direction: column; gap: 8px; }
+.more li { display: flex; flex-direction: column; gap: 2px; }
+.more li span { color: var(--text-sub); font-size: 12.5px; }
+.more p { color: var(--text-muted); font-size: 12px; }
+.excludedReason { color: #b45309 !important; }
+
+.notices { margin-top: 16px; display: flex; flex-direction: column; gap: 6px; }
+.notices p { display: flex; gap: 6px; align-items: flex-start; font-size: 12px; color: var(--text-sub); }
+.notices p svg { flex: none; margin-top: 2px; }
