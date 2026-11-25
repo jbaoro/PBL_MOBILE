@@ -37,3 +37,32 @@ export async function shareText(text: string, title?: string): Promise<ShareOutc
   }
   return (await copyText(text)) ? 'copied' : 'failed';
 }
+
+/**
+ * 파일 내려받기(캘린더 .ics 등). 휴대폰에서는 공유 시트로 파일을 넘길 수 있으면 그쪽을 먼저 쓴다.
+ * 앱에서는 expo-file-system + expo-sharing 구현으로 바꾼다.
+ */
+export async function saveFile(name: string, content: string, mimeType: string): Promise<'shared' | 'saved' | 'cancelled' | 'failed'> {
+  try {
+    const file = typeof File === 'function' ? new File([content], name, { type: mimeType }) : null;
+    if (file && typeof navigator !== 'undefined' && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: name });
+        return 'shared';
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return 'cancelled';
+      }
+    }
+    const url = URL.createObjectURL(new Blob([content], { type: mimeType }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return 'saved';
+  } catch {
+    return 'failed';
+  }
+}

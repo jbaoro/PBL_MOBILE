@@ -4,6 +4,6 @@
     "target": "ES2022", "module": "CommonJS", "moduleResolution": "node",
     "noEmit": false, "incremental": false, "rootDir": ".", "plugins": []
   },
-  "include": ["lib/meetpoint/**/*.ts", "features/meeting/model.ts", "features/meeting/display.ts", "tests/meetpoint/**/*.ts"],
+  "include": ["lib/meetpoint/**/*.ts", "features/meeting/model.ts", "features/meeting/display.ts", "features/meeting/share.ts", "tests/meetpoint/**/*.ts"],
   "exclude": ["node_modules", ".next"]
 }
