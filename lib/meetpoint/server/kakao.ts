@@ -1,3 +1,12 @@
+/**
+ * 카카오 API 연동 (서버 전용, REST API 키 사용)
+ * - 카카오맵(dapi.kakao.com): 장소·주소 검색, 주변 역·장소 검색, 대중교통·도보 경로
+ * - 카카오모빌리티(apis-navi.kakaomobility.com): 자동차 경로
+ *
+ * 카카오 응답을 앱의 데이터 형식(Location, Place, RouteSuccess)으로 바꾸고,
+ * 실패는 MeetPointError(코드·한국어 문구)로 바꾼다. 응답이 이상하면 0분 같은 값을 만들지 않고 오류로 처리한다.
+ * 키·원본 응답은 클라이언트에 보내지 않는다.
+ */
 import { MeetPointError } from '../errors';
 import { distanceMeters } from '../geo';
 import { createProviderCaches, withCache, type MapProvider } from './cache';
@@ -5,21 +14,25 @@ import type { Coordinates, HubKind, Location, Participant, Place, PlaceCategory,
 
 type Fetcher = typeof fetch;
 type JsonObject = Record<string, unknown>;
+// 카카오 응답 값 안전하게 꺼내기 (형식이 다르면 빈 값/NaN)
 const object = (value: unknown): JsonObject => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as JsonObject : {};
 const array = (value: unknown): unknown[] => Array.isArray(value) ? value : [];
 const string = (value: unknown): string => typeof value === 'string' ? value : '';
 const number = (value: unknown): number => typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : NaN;
 
+/** 응답 형식이 예상과 다를 때 */
 function invalidResponse(): never {
   throw new MeetPointError('UPSTREAM_ERROR', '지도 서비스 응답을 확인할 수 없어요. 다시 시도해 주세요.', 502, true);
 }
 
+/** 0 이상 숫자만 허용 (시간·거리) */
 function nonnegative(value: unknown): number {
   const parsed = number(value);
   if (!Number.isFinite(parsed) || parsed < 0) invalidResponse();
   return parsed;
 }
 
+/** 카카오맵 링크만 https 로 통과시킨다. 다른 주소·javascript: 등은 버린다. */
 function safeUrl(value: unknown): string | undefined {
   try {
     const url = new URL(string(value));
@@ -31,6 +44,7 @@ function safeUrl(value: unknown): string | undefined {
   return undefined;
 }
 
+/** 카카오 장소/주소 문서 → Location. 이름·주소·좌표가 없거나 이상하면 null */
 function parseLocation(value: unknown, addressResult = false): Location | null {
   const item = object(value);
   const lat = number(item.y);
@@ -48,10 +62,12 @@ function parseLocation(value: unknown, addressResult = false): Location | null {
 
 export type KakaoOptions = { key: string; mobilityKey?: string; fetcher?: Fetcher; timeoutMs?: number };
 
+/** 카카오 API 호출 담당. 테스트에서는 fetcher 를 가짜로 바꿔 끼운다. */
 export class KakaoProvider {
   private readonly options: KakaoOptions;
   constructor(options: KakaoOptions) { this.options = options; }
 
+  /** 공통 호출: 인증 헤더, 10초 제한 시간, HTTP 상태별 오류 변환 (401·403 권한, 429 한도, 그 외 실패) */
   private async request(path: string, params: Record<string, string>, signal?: AbortSignal, mobility = false): Promise<JsonObject> {
     const key = (mobility ? this.options.mobilityKey || this.options.key : this.options.key).trim();
     if (!key) throw new MeetPointError('NOT_CONFIGURED', '지도 서비스 연결 준비 중이에요. 설정 안내를 확인해 주세요.', 503);
@@ -85,6 +101,7 @@ export class KakaoProvider {
     return data.documents;
   }
 
+  /** 출발지 검색: 장소명 검색 + 주소 검색을 동시에 하고 합친다. 하나만 실패하면 안내 문구와 함께 나머지 결과를 준다. */
   async searchLocations(query: string, signal?: AbortSignal): Promise<{ locations: Location[]; notices: string[] }> {
     const responses = await Promise.allSettled([
       this.request('/v2/local/search/keyword.json', { query, size: '10' }, signal),
@@ -114,6 +131,7 @@ export class KakaoProvider {
     return this.documents(data).map((item) => parseLocation(item)).filter((item): item is Location => item !== null);
   }
 
+  /** 주변 음식점(FD6)·카페(CE7). 검색어가 있으면 키워드 검색, 없으면 분류 검색. 가까운 순 15개씩 */
   async nearbyPlaces(center: Coordinates, category: PlaceCategory, radius: number, query: string, page: number, signal?: AbortSignal): Promise<PlacePage> {
     const params: Record<string, string> = {
       x: String(center.lng), y: String(center.lat), radius: String(radius), sort: 'distance', size: '15', page: String(page),
@@ -134,6 +152,10 @@ export class KakaoProvider {
     return { places, page, hasNext: !meta.is_end && page < 45 };
   }
 
+  /**
+   * 한 참가자 → 한 목적지 이동시간. 대중교통·도보는 카카오맵, 자동차는 카카오모빌리티.
+   * 대중교통은 여러 경로 중 가장 빠른 것을 쓴다. 경로가 없으면 NO_ROUTE 오류.
+   */
   async route(person: Participant, destination: Location, signal?: AbortSignal): Promise<RouteSuccess> {
     const base = { participantId: person.id, destinationId: destination.id, transport: person.transport,
       timeBasis: 'query-time' as const, fetchedAt: new Date().toISOString() };

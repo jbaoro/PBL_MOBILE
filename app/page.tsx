@@ -1,5 +1,11 @@
 'use client';
-// 홈: 이 기기에 저장된 약속 목록 + 새 약속 만들기
+/**
+ * 약속 목록 (기본 주소 `/`)
+ *
+ * 앱의 첫 화면. 이 기기에 저장된 약속을 최근 수정 순으로 보여주고,
+ * 새 약속을 만들면 1단계(모임 정보)로 이동한다.
+ * 약속 카드를 누르면 그 약속에서 이어서 할 단계(resumeStep)로 바로 간다.
+ */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -9,14 +15,17 @@ import { scheduleText } from '@/features/meeting/share';
 import { meetingActions, useMeetingList, useMeetingStore } from '@/features/meeting/store';
 import styles from './home.module.css';
 
+/** 약속 카드 위 상태 뱃지 문구 */
 const statusLabel: Record<MeetingStatus, string> = {
   draft: '작성 중', ready: '추천 준비 완료', recommended: '추천 완료', confirmed: '확정',
 };
 
+/** 저장된 일시를 '2026년 12월 5일 (토) 오후 7:00' 형식으로. 공유 글과 같은 형식을 쓴다. */
 function formatSchedule(value?: string): string | null {
   return scheduleText(value);
 }
 
+/** 약속 한 개. 삭제는 실수 방지를 위해 한 번 더 확인한다(브라우저 confirm 창 대신 카드 안에서). */
 function MeetingCard({ meeting }: { meeting: MeetingDraft }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const status = meetingStatus(meeting);
@@ -55,8 +64,10 @@ export default function MeetingsHome() {
   const { hydrated, meetings } = useMeetingList();
   const { saveError } = useMeetingStore();
 
+  // 기기 저장소에서 약속을 불러오기 전에는 빈 목록 대신 로딩을 보여준다.
   if (!hydrated) return <FlowLoading title="MeetPoint" />;
 
+  /** 빈 약속을 만들고 1단계로 이동 */
   function startNew() {
     const id = meetingActions.create();
     router.push(meetingPath(id, 'info'));

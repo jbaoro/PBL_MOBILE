@@ -1,5 +1,11 @@
 'use client';
-// 2. 참가자 목록: 카드로 확인 · 추가 · 수정 · 삭제 → 2명 이상이면 추천 받기
+/**
+ * 2단계. 참가자 목록 (`/meetings/[id]/participants`)
+ *
+ * 한 사람(약속을 만드는 사람)이 모든 참가자를 입력한다. 카드를 누르면 수정, × 는 빼기.
+ * 2명 이상이면 '만날 곳 추천 받기'가 켜진다. (최대 8명)
+ * 출발지·이동 수단을 바꾸거나 사람을 빼면 이전 추천 결과는 모델에서 자동으로 지워진다.
+ */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -13,6 +19,7 @@ import {
 import { meetingActions } from '@/features/meeting/store';
 import { useMeetingStep } from '@/features/meeting/useMeetingStep';
 
+/** 참가자 한 명. 빼기는 카드 안에서 한 번 더 확인한다. */
 function PersonCard({ meetingId, person }: { meetingId: string; person: MeetingParticipant }) {
   const [confirming, setConfirming] = useState(false);
   return (
@@ -48,7 +55,7 @@ export default function ParticipantsPage({ params }: { params: { id: string } })
 
   const count = meeting.participants.length;
   const ready = count >= MIN_PARTICIPANTS;
-  const addHref = `${meetingPath(meeting.id, 'participants')}/new`;
+  const addHref = `${meetingPath(meeting.id, 'participants')}/new`; // 'new' = 새 참가자 추가 화면
 
   return (
     <FlowLayout title={meeting.title || '참가자'} backHref={meetingPath(meeting.id, 'info')} backLabel="모임 정보로"

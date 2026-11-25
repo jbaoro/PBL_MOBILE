@@ -1,6 +1,13 @@
 'use client';
-// 약속 저장소. 모든 화면이 이 저장소 하나를 공유하고, 변경 사항은 기기 저장소에 자동 저장된다.
-// 외부 라이브러리 없이 useSyncExternalStore로 구현해서 웹/앱 어디서나 같은 방식으로 쓸 수 있다.
+/**
+ * 약속 저장소. 모든 화면이 이 저장소 하나를 공유하고, 변경 사항은 기기 저장소에 자동 저장된다.
+ * 외부 라이브러리 없이 useSyncExternalStore 로 구현해서 웹/앱 어디서나 같은 방식으로 쓸 수 있다.
+ *
+ * 사용법
+ * - 읽기: useMeeting(id), useMeetingList()  → 값이 바뀌면 화면이 다시 그려진다.
+ * - 쓰기: meetingActions.xxx(id, ...)        → 규칙은 model.ts 의 순수 함수가 적용하고, 여기서는 저장만 한다.
+ * - 처음 읽을 때 기기 저장소에서 불러온다(hydrated). 불러오기 전에는 화면에서 로딩을 보여준다.
+ */
 import { useEffect, useSyncExternalStore } from 'react';
 import { deviceStorage, type KeyValueStorage } from '@/lib/platform/storage';
 import { createId } from '@/lib/platform/id';
@@ -21,6 +28,7 @@ let storage: KeyValueStorage = deviceStorage;
 let hydrating: Promise<void> | null = null;
 let saveQueue: Promise<void> = Promise.resolve();
 
+/** 구독 중인 화면들에 상태가 바뀌었다고 알린다. */
 function emit() { listeners.forEach((listener) => listener()); }
 
 function setState(next: State) {
@@ -28,6 +36,7 @@ function setState(next: State) {
   emit();
 }
 
+/** 현재 약속 전체를 기기 저장소에 저장한다. 저장은 순서대로 한 번에 하나씩 처리한다. */
 function persist() {
   saveQueue = saveQueue.then(async () => {
     // 불러오기 전에 저장하면 기존 약속을 덮어쓰므로, 항상 불러오기를 마친 뒤 최신 상태를 저장한다.
@@ -41,6 +50,7 @@ function persist() {
   });
 }
 
+/** 기기 저장소에서 약속을 한 번만 불러온다. 여러 화면이 동시에 불러도 실제 읽기는 한 번이다. */
 export function hydrateMeetings(): Promise<void> {
   if (state.hydrated) return Promise.resolve();
   hydrating ??= (async () => {
@@ -57,6 +67,7 @@ export function hydrateMeetings(): Promise<void> {
   return hydrating;
 }
 
+/** 약속 하나를 model 함수로 바꾸고, 실제로 바뀌었을 때만 화면 갱신·저장한다. */
 function update(id: string, change: (meeting: MeetingDraft, now: string) => MeetingDraft): void {
   const current = state.meetings[id];
   if (!current) return;
@@ -66,6 +77,7 @@ function update(id: string, change: (meeting: MeetingDraft, now: string) => Meet
   persist();
 }
 
+/** 화면에서 약속을 바꾸는 유일한 통로. 각 동작의 규칙은 model.ts 함수 설명 참고. */
 export const meetingActions = {
   create(): string {
     const id = createId('m_');
@@ -115,6 +127,7 @@ export function useMeetingList(): { hydrated: boolean; meetings: MeetingDraft[] 
   return { hydrated, meetings: Object.values(meetings).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)) };
 }
 
+/** 약속 하나. 없으면 meeting 이 undefined (hydrated 가 true 일 때만 '없음'으로 판단할 것) */
 export function useMeeting(id: string): { hydrated: boolean; meeting: MeetingDraft | undefined } {
   const { hydrated, meetings } = useMeetingStore();
   return { hydrated, meeting: meetings[id] };

@@ -1,10 +1,16 @@
+/**
+ * API 라우트 공통 도구: 응답 형식, 오류 처리, JSON 읽기, 무거운 조회(추천·경로)의 요청 제한.
+ * 모든 응답은 { data } 또는 { error: { code, message, retryable } } 이고, 캐시하지 않는다(no-store).
+ */
 import { MeetPointError, publicError } from '../errors';
 
 const responseHeaders = { 'Cache-Control': 'no-store', 'Content-Type': 'application/json; charset=utf-8' };
+/** 성공 응답 { data } */
 export function json(data: unknown): Response {
   return Response.json({ data }, { headers: responseHeaders });
 }
 
+/** 라우트 본문을 실행하고, 오류는 정해진 형식·HTTP 상태로 바꿔 응답한다. */
 export async function handle(action: () => Promise<unknown>): Promise<Response> {
   try { return json(await action()); }
   catch (error) {
@@ -15,6 +21,7 @@ export async function handle(action: () => Promise<unknown>): Promise<Response> 
   }
 }
 
+/** JSON 요청 본문 읽기. Content-Type 확인, 32KB 초과 거부, 잘못된 JSON 은 INVALID_INPUT */
 export async function readJson(request: Request): Promise<unknown> {
   if (!request.headers.get('content-type')?.toLowerCase().includes('application/json')) {
     throw new MeetPointError('INVALID_INPUT', 'JSON 형식으로 요청해 주세요.', 415);
@@ -49,11 +56,13 @@ export const EXPENSIVE_LIMITS = { globalActive: 6, perClientActive: 1, perClient
 let globalActive = 0;
 const clients = new Map<string, { active: number; starts: number[] }>();
 
+/** 요청한 사용자 구분 키: 프록시가 붙여 주는 IP, 없으면 'local'(개발 환경) */
 export function clientKey(request: Request): string {
   const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
   return forwarded || request.headers.get('x-real-ip')?.trim() || 'local';
 }
 
+/** 무거운 조회 실행: 제한을 넘으면 BUSY(429), 통과하면 55초 제한 시간 안에서 실행한다. */
 export async function expensive<T>(request: Request, action: (signal: AbortSignal) => Promise<T>, now = Date.now()): Promise<T> {
   const key = clientKey(request);
   const client = clients.get(key) ?? { active: 0, starts: [] };

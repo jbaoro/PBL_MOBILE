@@ -1,5 +1,13 @@
 'use client';
-// 5. 장소 상세: 고른 장소까지 모든 참가자의 실제 이동시간을 다시 조회하고, 모두 성공하면 확정한다.
+/**
+ * 5단계. 장소 확인 (`/meetings/[id]/places/selected`)
+ *
+ * 추천 지역(역) 기준 시간과 실제 장소 문 앞까지의 시간은 다를 수 있으므로,
+ * 고른 장소까지 모든 참가자의 경로를 다시 조회(/api/routes)한다.
+ * - 한 명이라도 경로를 찾지 못하면 확정할 수 없다(metrics 가 null). '다른 장소 고르기'만 보여준다.
+ * - 모두 성공하면 '여기로 확정' → 약속에 확정 시각을 저장하고 6단계로 이동한다.
+ * - 조회 결과는 약속에 저장되어 다시 들어와도 재조회하지 않는다. (오른쪽 위 버튼으로 다시 조회)
+ */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -15,6 +23,7 @@ import { meetingActions } from '@/features/meeting/store';
 import { useMeetingStep } from '@/features/meeting/useMeetingStep';
 import { ApiError, isAbort, meetpointApi } from '@/lib/api/client';
 
+/** 재조회 상태. 결과는 약속(meeting.placeRoutes)에 저장된다. */
 type RunState = { status: 'idle' } | { status: 'loading' } | { status: 'error'; message: string };
 
 export default function PlaceDetailPage({ params }: { params: { id: string } }) {
@@ -23,6 +32,7 @@ export default function PlaceDetailPage({ params }: { params: { id: string } }) 
   const [run, setRun] = useState<RunState>({ status: 'idle' });
   const controller = useRef<AbortController>();
 
+  /** 고른 장소까지 모든 참가자의 이동시간을 조회해 약속에 저장한다. */
   const check = useCallback(async (target: MeetingDraft) => {
     const place = target.selectedPlace;
     if (!place) return;
@@ -52,17 +62,19 @@ export default function PlaceDetailPage({ params }: { params: { id: string } }) 
 
   if (!meeting?.selectedPlace) return <FlowLoading title="장소 확인" />;
   const place = meeting.selectedPlace;
-  const area = selectedCandidate(meeting);
+  const area = selectedCandidate(meeting); // 3단계에서 고른 추천 지역 (기준 시간 비교용)
   const result = meeting.placeRoutes;
   const metrics = result?.metrics ?? null;
   const placesHref = meetingPath(meeting.id, 'places');
 
+  /** 확정 → 6단계. confirmMeeting 은 모든 경로가 성공한 경우에만 확정한다. */
   function confirm() {
     if (!meeting) return;
     meetingActions.confirm(meeting.id);
     router.push(meetingPath(meeting.id, 'done'));
   }
 
+  // 하단 버튼: 조회 중 → 비활성 / 모두 성공 → '다른 곳' + '여기로 확정' / 실패 포함 → '다른 장소 고르기'
   const bottom = run.status === 'loading' || !result
     ? <button type="button" className={flowStyles.primary} disabled>이동시간 확인 중…</button>
     : metrics
@@ -102,6 +114,7 @@ export default function PlaceDetailPage({ params }: { params: { id: string } }) 
       {result && run.status !== 'loading' && (
         <section className={styles.detail} aria-labelledby="place-times">
           <h3 id="place-times">이 장소까지 이동시간</h3>
+          {/* metrics 가 있으면(모두 성공) 지표와 추천 지역 대비 변화를, 없으면 확정 불가 안내를 보여준다 */}
           {metrics ? (
             <>
               <div className="hero-meta">

@@ -1,5 +1,15 @@
 'use client';
-// 3. 추천 지역: 추천 실행 → 1순위 카드(균형도·지표·참가자별 시간) → 후보 순위 → 검색 범위·제외 후보 → 장소 찾기
+/**
+ * 3단계. 추천 지역 (`/meetings/[id]/recommend`)
+ *
+ * 화면 흐름: 추천 실행 → 1순위 카드(균형도·최대/차이/평균·미니 지도) → 후보 순위 → 선택한 후보의 이유와 참가자별 시간
+ *           → 검색 범위·제외된 후보·안내 문구 → 'OO 근처 장소 찾기'(4단계)
+ *
+ * - 추천 결과가 없으면 들어오자마자 /api/recommendations 를 부르고, 결과는 약속에 저장한다.
+ *   그래서 새로고침하거나 다시 들어와도 API를 다시 부르지 않는다. (오른쪽 위 버튼으로만 다시 조회)
+ * - 순위 기준: 가장 오래 걸리는 사람의 시간 → 참가자 간 시간 차이 → 평균 (서버 rankCandidates)
+ * - 균형도는 화면 표시용이며 순위에는 쓰지 않는다. (features/meeting/display.ts)
+ */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -14,11 +24,14 @@ import { useMeetingStep } from '@/features/meeting/useMeetingStep';
 import { ApiError, isAbort, meetpointApi } from '@/lib/api/client';
 import type { CandidateResult, HubKind } from '@/lib/meetpoint/types';
 
+/** 검색 범위 설명에 쓰는 거점 종류 이름 */
 const HUB_LABEL: Record<HubKind, string> = { subway: '지하철역', rail: '기차역', terminal: '버스터미널' };
 const radiusText = (meters: number) => (meters >= 1000 ? `${Math.round(meters / 100) / 10}km` : `${meters}m`);
 
+/** 추천 실행 상태. 결과 자체는 화면 상태가 아니라 약속(meeting.recommendation)에 저장된다. */
 type RunState = { status: 'idle' } | { status: 'loading' } | { status: 'error'; error: ApiError };
 
+/** 오류 종류별로 사용자가 할 수 있는 일을 알려준다. */
 function errorHelp(error: ApiError): string {
   switch (error.code) {
     case 'NOT_CONFIGURED': return '서버에 카카오 API 키가 설정되지 않았어요. .env.local의 KAKAO_REST_API_KEY를 확인해 주세요.';
@@ -29,6 +42,7 @@ function errorHelp(error: ApiError): string {
   }
 }
 
+/** 1순위 후보 카드: 균형도 막대, 최대·차이·평균, 출발지와의 위치 관계 그림 */
 function TopCard({ meeting, item }: { meeting: MeetingDraft; item: CandidateResult }) {
   const metrics = item.metrics!;
   const balance = balanceScore(metrics);
@@ -61,6 +75,7 @@ function TopCard({ meeting, item }: { meeting: MeetingDraft; item: CandidateResu
   );
 }
 
+/** 순위 목록에서 고른 후보의 추천 이유(서버가 만든 문장)와 참가자별 이동시간 */
 function CandidateDetail({ meeting, item, rank }: { meeting: MeetingDraft; item: CandidateResult; rank: number }) {
   return (
     <section className={styles.detail} aria-labelledby="detail-title">
@@ -78,9 +93,10 @@ export default function RecommendPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { meeting } = useMeetingStep(params.id, 'recommend');
   const [run, setRun] = useState<RunState>({ status: 'idle' });
-  const [viewingId, setViewingId] = useState<string>();
-  const controller = useRef<AbortController>();
+  const [viewingId, setViewingId] = useState<string>(); // 순위 목록에서 눌러 보고 있는 후보 (저장 전)
+  const controller = useRef<AbortController>();         // 진행 중인 추천 요청 (다시 조회·화면 이탈 시 취소)
 
+  /** 추천 API 호출 → 성공하면 약속에 저장(이전 선택 초기화), 실패하면 오류 상태. 취소된 요청은 무시한다. */
   const recommend = useCallback(async (target: MeetingDraft) => {
     controller.current?.abort();
     const request = new AbortController();
@@ -108,6 +124,7 @@ export default function RecommendPage({ params }: { params: { id: string } }) {
   }, [needsRun, meeting, recommend]);
   useEffect(() => () => controller.current?.abort(), []);
 
+  // 약속을 불러오는 중이거나, 앞 단계가 안 끝나 다른 단계로 이동 중
   if (!meeting) return <FlowLoading title="추천 지역" />;
   const backHref = meetingPath(meeting.id, 'participants');
   const result = meeting.recommendation;
@@ -147,10 +164,12 @@ export default function RecommendPage({ params }: { params: { id: string } }) {
 
   if (!result) return <FlowLoading title="추천 지역" />;
   const ranked = result.ranked;
+  // 보고 있는 후보: 방금 누른 후보 → 이전에 고른 후보 → 1순위 순서로 정한다.
   const viewing = ranked.find((item) => item.candidate.id === (viewingId ?? meeting.selectedCandidateId)) ?? ranked[0];
   const viewingRank = viewing ? ranked.indexOf(viewing) + 1 : 0;
   const scope = result.searchScope;
 
+  /** 보고 있는 후보를 약속에 저장하고 4단계(주변 장소)로 이동 */
   function goPlaces() {
     if (!viewing || !meeting) return;
     meetingActions.selectCandidate(meeting.id, viewing.candidate.id);
@@ -166,12 +185,14 @@ export default function RecommendPage({ params }: { params: { id: string } }) {
         ? <button type="button" className={flowStyles.primary} onClick={goPlaces}>{viewing.candidate.name} 근처 장소 찾기</button>
         : <Link href={backHref} className={flowStyles.primary}>참가자 정보 수정하기</Link>}>
 
+      {/* 다시 조회가 실패하면 이전 결과는 그대로 두고 알림만 보여준다 */}
       {run.status === 'error' && <p className={flowStyles.notice} role="alert">다시 조회하지 못했어요: {run.error.message} 아래는 이전 결과예요.</p>}
 
       <p className={styles.resultMeta}>
         {scope.tierLabel} · 참가자 간 최대 {scope.maxSpreadKm}km · 후보 {result.searchedCandidateCount}곳 비교 · {formatClock(result.generatedAt)} 조회
       </p>
 
+      {/* 모든 참가자가 갈 수 있는 후보가 하나도 없으면 제외 사유를 펼쳐서 보여준다 */}
       {ranked.length === 0 ? (
         <section className={styles.failure}>
           <IconAlert size={28} color="#d97706" />
@@ -219,6 +240,7 @@ export default function RecommendPage({ params }: { params: { id: string } }) {
         </>
       )}
 
+      {/* 서버가 실제로 검색한 지역(근거리·장거리 구분, 범위 확대 여부)을 그대로 보여준다 */}
       <details className={styles.more}>
         <summary>어디까지 찾아봤나요? 검색 지역 {scope.areas.length}곳{scope.rounds > 1 ? ' · 범위 확대 포함' : ''}</summary>
         <ul>{scope.areas.map((area, index) => (

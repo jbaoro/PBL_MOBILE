@@ -15,6 +15,7 @@ function browserStorage(): Storage | null {
   }
 }
 
+/** 웹 구현: localStorage. 접근이 막힌 환경에서는 읽기는 null, 쓰기는 오류를 던진다. */
 export const deviceStorage: KeyValueStorage = {
   async getItem(key) {
     try { return browserStorage()?.getItem(key) ?? null; } catch { return null; }

@@ -1,5 +1,13 @@
 'use client';
-// 2-1. 참가자 추가·수정: 이름 · 색상 · 출발지 검색 · 이동 수단
+/**
+ * 2단계-1. 참가자 추가·수정 (`/meetings/[id]/participants/new` 또는 `/participants/[참가자 id]`)
+ *
+ * - 이름: 필수, 최대 12자, 같은 약속 안에서 중복 불가
+ * - 색상: 아바타 색. 새 참가자에게는 아직 안 쓴 색을 먼저 준다.
+ * - 출발지: 검색 결과에서 골라야 한다(좌표가 있어야 경로를 조회할 수 있으므로).
+ * - 이동 수단: 대중교통·자동차·도보
+ * 이미 추천을 받은 상태에서 출발지·이동 수단을 바꾸면 저장 전에 '추천이 지워진다'고 알려준다.
+ */
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { IconCheck } from '@/app/components/Icons';
@@ -29,6 +37,7 @@ export default function ParticipantEditPage({ params }: { params: { id: string; 
   const [touched, setTouched] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
+  // 처음 한 번만 입력칸을 채운다: 수정이면 저장된 값, 추가면 기본값(첫 참가자 이름은 '나')
   useEffect(() => {
     if (!meeting || loaded) return;
     if (existing) {
@@ -49,13 +58,16 @@ export default function ParticipantEditPage({ params }: { params: { id: string; 
 
   if (!meeting || invalid || !loaded) return <FlowLoading title={isNew ? '참가자 추가' : '참가자 수정'} />;
 
+  // 입력 검증
   const trimmed = name.trim();
   const nameError = !trimmed ? '이름을 입력해 주세요.'
     : meeting.participants.some((person) => person.id !== existing?.id && person.name === trimmed) ? '같은 이름의 참가자가 있어요.' : null;
   const originError = !origin ? '출발지를 검색해서 골라 주세요.' : null;
+  // 경로에 영향을 주는 값이 바뀌었는지 (이름·색상만 바꾸면 추천 결과는 유지된다)
   const routeChanged = !!existing && !!meeting.recommendation && !!origin &&
     (existing.origin.id !== origin.id || existing.transport !== transport);
 
+  /** 검증 → 저장(새 참가자면 id 발급) → 참가자 목록으로 */
   function save(event: React.FormEvent) {
     event.preventDefault();
     setTouched(true);

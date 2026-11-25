@@ -1,4 +1,7 @@
-// 확정된 약속을 공유하기 위한 글과 캘린더 파일 만들기. 순수 함수만 둔다. (웹·앱 공통)
+/**
+ * 확정된 약속을 공유하기 위한 글과 캘린더 파일 만들기. 순수 함수만 둔다. (웹·앱 공통)
+ * 실제로 보내거나 저장하는 일은 lib/platform/share.ts 가 한다.
+ */
 import type { Location, Transport } from '../../lib/meetpoint/types';
 import type { MeetingDraft } from './model';
 import { minutesText } from './display';
@@ -7,6 +10,7 @@ const TRANSPORT_LABEL: Record<Transport, string> = { transit: '대중교통', ca
 
 // ── 약속 일시 ─────────────────────────────────────────────────
 
+/** 약속 일시. 시간 미정이면 hour·minute 가 없다. */
 export type Schedule = { year: number; month: number; day: number; hour?: number; minute?: number };
 
 /** 'YYYY-MM-DD' 또는 'YYYY-MM-DDTHH:mm' (기기 현지 시각) */
@@ -19,6 +23,7 @@ export function parseSchedule(value?: string): Schedule | null {
 }
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+/** '2026년 12월 5일 (토) 오후 7:00' / '2026년 12월 5일 (토) · 시간 미정'. 일시가 없으면 null */
 export function scheduleText(value?: string): string | null {
   const s = parseSchedule(value);
   if (!s) return null;
@@ -130,6 +135,7 @@ export function buildIcs(meeting: MeetingDraft, now: Date, durationMinutes = 120
   return lines.map(foldIcsLine).join('\r\n') + '\r\n';
 }
 
+/** 일정 파일 이름: 모임 이름에서 파일명에 못 쓰는 문자를 뺀다. */
 export function icsFileName(meeting: MeetingDraft): string {
   const safe = (meeting.title || '약속').replace(/[\\/:*?"<>|]/g, '').trim().slice(0, 30) || '약속';
   return `${safe}.ics`;

@@ -1,4 +1,7 @@
-// 화면 표시용 계산. 순수 함수만 둔다. (순위 계산에는 쓰지 않는다)
+/**
+ * 화면 표시용 계산: 균형도, 시간·거리 문구, 위치 그림 좌표 등.
+ * 순수 함수만 둔다. 순위 계산(서버 ranking.ts)에는 쓰지 않는다.
+ */
 import type { Coordinates, Metrics, Participant, RouteResult } from '../../lib/meetpoint/types';
 import type { MeetingParticipant } from './model';
 
@@ -18,6 +21,7 @@ export function balanceScore(metrics: Metrics): number {
   return Math.max(0, Math.min(100, Math.round((fastest / metrics.maxMinutes) * 100)));
 }
 
+/** 균형도 점수를 짧은 말로 */
 export function balanceLabel(score: number): string {
   if (score >= 80) return '매우 고름';
   if (score >= 60) return '고른 편';
@@ -36,6 +40,7 @@ export function minutesText(value: number): string {
   return rest ? `${hours}시간 ${rest}분` : `${hours}시간`;
 }
 
+/** 성공한 경로의 분, 실패·없음이면 null */
 export function successfulMinutes(route: RouteResult | undefined): number | null {
   return route && route.status === 'ok' ? route.durationMinutes : null;
 }
@@ -61,6 +66,7 @@ export function projectPoints(points: Coordinates[], width: number, height: numb
   }));
 }
 
+/** 조회 시각 표시: '오후 1:40' */
 export function formatClock(iso: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' });
@@ -72,6 +78,7 @@ export function categoryText(category: string): string {
   return (parts.length > 1 ? parts.slice(1) : parts).slice(-2).join(' · ');
 }
 
+/** 거리 표시: 1km 미만은 m, 이상은 km (2km, 1.5km). 값이 없으면 null */
 export function distanceText(meters?: number): string | null {
   if (meters === undefined || !Number.isFinite(meters)) return null;
   return meters < 1000 ? `${Math.round(meters)}m` : `${Math.round(meters / 100) / 10}km`;

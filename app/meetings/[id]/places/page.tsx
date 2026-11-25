@@ -1,5 +1,13 @@
 'use client';
-// 4. 주변 장소: 선택한 지역 근처 음식점·카페를 찾아 하나를 고른다.
+/**
+ * 4단계. 주변 장소 (`/meetings/[id]/places`)
+ *
+ * 3단계에서 고른 추천 지역(역·터미널) 근처의 음식점·카페를 카카오 장소 검색(/api/places)으로 보여준다.
+ * - 필터: 음식점/카페, 반경 500m·1km·2km, 키워드. 필터가 바뀌면 1페이지부터 다시 불러온다.
+ * - '더 보기'로 다음 페이지를 이어 붙인다(이미 있는 장소는 빼고).
+ * - 장소를 누르면 약속에 저장하고 5단계(장소 확인)로 이동한다.
+ * 영업 여부·가격·평점은 카카오 검색 결과에 없어서 보여주지 않는다.
+ */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -13,6 +21,7 @@ import { useMeetingStep } from '@/features/meeting/useMeetingStep';
 import { ApiError, isAbort, meetpointApi } from '@/lib/api/client';
 import type { Place, PlaceCategory } from '@/lib/meetpoint/types';
 
+/** 선택할 수 있는 검색 반경(m) */
 const RADII = [500, 1000, 2000] as const;
 type Filters = { category: PlaceCategory; radius: number; keyword: string };
 
@@ -30,6 +39,7 @@ export default function PlacesPage({ params }: { params: { id: string } }) {
   const [error, setError] = useState<string | null>(null);
   const controller = useRef<AbortController>();
 
+  /** nextPage 페이지를 불러온다. 1페이지면 목록을 바꾸고, 그 이후면 뒤에 이어 붙인다. 이전 요청은 취소한다. */
   const load = useCallback(async (nextPage: number, current: Filters) => {
     if (!area) return;
     controller.current?.abort();
@@ -66,19 +76,21 @@ export default function PlacesPage({ params }: { params: { id: string } }) {
 
   if (!meeting || !area) return <FlowLoading title="주변 장소" />;
 
+  /** 필터 변경: 목록을 비우면 위의 effect가 1페이지부터 다시 불러온다. */
   function change(next: Partial<Filters>) {
     setPlaces([]);
     setHasNext(false);
     setFilters((previous) => ({ ...previous, ...next }));
   }
 
+  /** 장소 선택 → 약속에 저장(이전 장소의 이동시간·확정은 지워짐) → 5단계 */
   function choose(place: Place) {
     if (!meeting) return;
     meetingActions.selectPlace(meeting.id, place);
     router.push(meetingPath(meeting.id, 'place'));
   }
 
-  const chosen = meeting.selectedPlace;
+  const chosen = meeting.selectedPlace; // 이미 고른 장소가 있으면 목록에 표시하고 하단에 바로가기를 띄운다
   const label = filters.category === 'restaurant' ? '음식점' : '카페';
 
   return (
@@ -160,6 +172,7 @@ export default function PlacesPage({ params }: { params: { id: string } }) {
 
       {busy && <div className={styles.listLoading} role="status"><span className={styles.smallSpinner} aria-hidden="true" />{label}을 찾고 있어요…</div>}
 
+      {/* 결과가 없으면 반경을 넓혀 보도록 안내 */}
       {!busy && !error && places.length === 0 && (
         <div className={styles.emptyBox}>
           <p><b>{distanceText(filters.radius)}</b> 안에서 {filters.keyword ? `‘${filters.keyword}’ ` : ''}{label}을 찾지 못했어요.</p>
