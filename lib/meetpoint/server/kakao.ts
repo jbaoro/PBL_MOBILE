@@ -1,5 +1,6 @@
 import { MeetPointError } from '../errors';
-import type { Coordinates, Location, Participant, Place, PlaceCategory, PlacePage, RouteSuccess } from '../types';
+import { distanceMeters } from '../geo';
+import type { Coordinates, HubKind, Location, Participant, Place, PlaceCategory, PlacePage, RouteSuccess } from '../types';
 
 type Fetcher = typeof fetch;
 type JsonObject = Record<string, unknown>;
@@ -102,8 +103,10 @@ export class KakaoProvider {
     return { locations: locations.slice(0, 20), notices };
   }
 
-  async nearbyHubs(center: Coordinates, kind: 'subway' | 'rail' | 'terminal', signal?: AbortSignal): Promise<Location[]> {
-    const params: Record<string, string> = { x: String(center.lng), y: String(center.lat), radius: '20000', sort: 'distance', size: '15' };
+  /** 지하철역·기차역·버스터미널 검색. 반경은 카카오 제한(최대 20km) 안으로 맞춘다. */
+  async nearbyHubs(center: Coordinates, kind: HubKind, radiusMeters = 20000, signal?: AbortSignal): Promise<Location[]> {
+    const radius = String(Math.round(Math.min(20000, Math.max(500, radiusMeters))));
+    const params: Record<string, string> = { x: String(center.lng), y: String(center.lat), radius, sort: 'distance', size: '15' };
     if (kind === 'subway') params.category_group_code = 'SW8';
     else params.query = kind === 'rail' ? '기차역' : '버스터미널';
     const data = await this.request(kind === 'subway' ? '/v2/local/search/category.json' : '/v2/local/search/keyword.json', params, signal);
@@ -156,6 +159,16 @@ export class KakaoProvider {
       ...(person.transport === 'walk' ? { route_mode: 'SHORTEST' } : {}),
     }, signal);
     if (typeof data.status !== 'string') invalidResponse();
+    // EQUAL_POINTS: 출발지와 도착지가 같은 지점으로 잡힐 만큼 가깝다. 실패로 보면 출발지 바로 옆 역이 후보에서 빠지므로
+    // 대중교통은 도보 경로로 다시 조회하고, 도보도 같은 지점이면 직선거리를 걷는 시간으로 계산한다.
+    if (data.status === 'EQUAL_POINTS') {
+      if (person.transport === 'transit') {
+        const walk = await this.route({ ...person, transport: 'walk' }, destination, signal);
+        return { ...walk, transport: 'transit' };
+      }
+      const meters = distanceMeters(person.origin, destination);
+      return { ...base, status: 'ok', provider: 'kakao-map', durationMinutes: meters / 75, distanceMeters: meters };
+    }
     if (data.status !== 'OK') throw new MeetPointError('NO_ROUTE', person.transport === 'transit'
       ? '이 구간의 대중교통 경로를 찾지 못했어요. 출발 위치나 이동 수단을 바꿔 주세요.'
       : '이 구간의 도보 경로를 찾지 못했어요. 이동 거리나 출발 위치를 확인해 주세요.', 422);

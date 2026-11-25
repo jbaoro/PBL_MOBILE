@@ -41,16 +41,42 @@ export async function readJson(request: Request): Promise<unknown> {
   } finally { reader.releaseLock(); }
 }
 
-let active = 0;
-let recentStarts: number[] = [];
-export async function expensive<T>(request: Request, action: (signal: AbortSignal) => Promise<T>): Promise<T> {
-  const now = Date.now();
-  recentStarts = recentStarts.filter((time) => now - time < 60000);
-  if (active >= 2 || recentStarts.length >= 10) {
-    throw new MeetPointError('BUSY', '다른 조회가 진행 중이거나 요청이 잦아요. 잠시 후 다시 시도해 주세요.', 429, true);
+// 무거운 조회(추천·경로)의 동시 실행·빈도 제한.
+// 이전에는 서버 전체에 "동시 2건·분당 10건"이 걸려 있어 사용자 몇 명만 있어도 서로 막혔다.
+// 이제 사용자(IP)별로 제한하고, 서버 전체에는 넉넉한 동시 실행 상한만 둔다.
+// 메모리 기반이라 서버 인스턴스마다 따로 계산된다. (여러 인스턴스로 배포할 때는 공용 저장소로 옮겨야 함)
+export const EXPENSIVE_LIMITS = { globalActive: 6, perClientActive: 1, perClientPerMinute: 6, timeoutMs: 55000 } as const;
+let globalActive = 0;
+const clients = new Map<string, { active: number; starts: number[] }>();
+
+export function clientKey(request: Request): string {
+  const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
+  return forwarded || request.headers.get('x-real-ip')?.trim() || 'local';
+}
+
+export async function expensive<T>(request: Request, action: (signal: AbortSignal) => Promise<T>, now = Date.now()): Promise<T> {
+  const key = clientKey(request);
+  const client = clients.get(key) ?? { active: 0, starts: [] };
+  client.starts = client.starts.filter((time) => now - time < 60000);
+  if (client.active >= EXPENSIVE_LIMITS.perClientActive) {
+    throw new MeetPointError('BUSY', '이전 조회가 아직 진행 중이에요. 끝난 뒤 다시 시도해 주세요.', 429, true);
   }
-  active++;
-  recentStarts.push(now);
-  try { return await action(AbortSignal.any([request.signal, AbortSignal.timeout(55000)])); }
-  finally { active--; }
+  if (client.starts.length >= EXPENSIVE_LIMITS.perClientPerMinute) {
+    throw new MeetPointError('BUSY', '조회 요청이 너무 잦아요. 1분 정도 뒤에 다시 시도해 주세요.', 429, true);
+  }
+  if (globalActive >= EXPENSIVE_LIMITS.globalActive) {
+    throw new MeetPointError('BUSY', '지금 조회하는 사람이 많아요. 잠시 후 다시 시도해 주세요.', 429, true);
+  }
+  globalActive++;
+  client.active++;
+  client.starts.push(now);
+  clients.set(key, client);
+  try { return await action(AbortSignal.any([request.signal, AbortSignal.timeout(EXPENSIVE_LIMITS.timeoutMs)])); }
+  finally {
+    globalActive--;
+    client.active--;
+    if (client.active === 0 && client.starts.length === 0) clients.delete(key);
+    // 오래된 기록 정리 (메모리 누수 방지)
+    if (clients.size > 5000) clients.forEach((value, id) => { if (value.active === 0) clients.delete(id); });
+  }
 }

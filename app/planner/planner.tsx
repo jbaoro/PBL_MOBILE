@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import type { ApiResponse, CandidateResult, Location, Participant, Place, PlaceCategory, PlacePage, RecommendationResult, Transport } from '@/lib/meetpoint/types';
+import type { ApiResponse, CandidateResult, HubKind, Location, Participant, Place, PlaceCategory, PlacePage, RecommendationResult, Transport } from '@/lib/meetpoint/types';
 import LocationSearch from './location-search';
 import styles from './planner.module.css';
 
@@ -10,6 +10,7 @@ type Draft = Omit<Participant, 'origin'> & { origin?: Location };
 const modes: { value: Transport; label: string; icon: string }[] = [
   { value: 'transit', label: '대중교통', icon: '▤' }, { value: 'car', label: '자동차', icon: '↗' }, { value: 'walk', label: '도보', icon: '↟' },
 ];
+const hubKindLabel: Record<HubKind, string> = { subway: '지하철역', rail: '기차역', terminal: '버스터미널' };
 const minutes = (value: number) => value === 0 ? '0분' : `${Math.ceil(value)}분`;
 const time = (value: string) => new Date(value).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 
@@ -218,13 +219,17 @@ export default function Planner() {
       {busy && <div role="status" className={styles.loading}><span className={styles.spinner} />각자의 경로를 비교하고 있어요. 최대 약 1분 정도 걸릴 수 있어요.</div>}
     </section>
     {!results && !busy && <div className={styles.beforeResults}><span aria-hidden="true">↗ &nbsp; ↖</span><h2>우리에게 맞는 중간은 어디일까요?</h2><p>출발지를 선택하면 실제 경로로 비교를 시작할 수 있어요.</p></div>}
-    {results && <section className={styles.panel} ref={resultsRef} tabIndex={-1} aria-labelledby="results-title"><div className={styles.sectionHeading}><div><span className={styles.eyebrow}>02 / A FAIRER MEETING</span><h2 id="results-title">함께 가기 좋은 만남 지점</h2><p>{results.searchedCandidateCount}곳 비교 · {time(results.generatedAt)} 조회</p></div></div>
+    {results && <section className={styles.panel} ref={resultsRef} tabIndex={-1} aria-labelledby="results-title"><div className={styles.sectionHeading}><div><span className={styles.eyebrow}>02 / A FAIRER MEETING</span><h2 id="results-title">함께 가기 좋은 만남 지점</h2><p>{results.searchScope.tierLabel}(참가자 간 최대 {results.searchScope.maxSpreadKm}km) · 후보 {results.searchScope.collectedCount}곳 중 {results.searchedCandidateCount}곳 비교 · {time(results.generatedAt)} 조회</p></div></div>
+      <details className={styles.scope}><summary>어디까지 찾아봤나요? 검색 지역 {results.searchScope.areas.length}곳{results.searchScope.rounds > 1 ? ' · 범위 확대 포함' : ''}</summary>
+        <ul>{results.searchScope.areas.map((area, index) => <li key={`${area.label}-${index}`}><strong>{area.label}</strong><span>반경 {area.radiusMeters >= 1000 ? `${Math.round(area.radiusMeters / 100) / 10}km` : `${area.radiusMeters}m`} · {area.kinds.map((kind) => hubKindLabel[kind]).join('·')}</span></li>)}</ul>
+        <p>검색으로 모은 후보를 거리로 먼저 추린 뒤, 모든 참가자의 실제 경로를 조회해 비교했어요.{results.searchScope.limited ? ' 조회 시간과 호출 수 제한으로 일부 후보는 비교하지 못했어요.' : ''}</p>
+      </details>
       <div className={styles.rule}><b>추천 순서</b><span>최대 이동시간 <i>→</i> 시간 차이 <i>→</i> 평균 이동시간</span></div>
       {!results.ranked.length && <div className={styles.empty}><h3>모두의 경로가 확인된 후보가 없어요.</h3><p>아래 조회 실패 이유를 확인하고 출발지나 이동 수단을 바꿔 주세요.</p><button type="button" className={styles.secondary} onClick={calculate}>다시 비교</button></div>}
       <div className={styles.resultGrid}><div className={styles.candidates}>{results.ranked.map((item, index) => <button type="button" key={item.candidate.id} className={`${styles.candidate} ${selected?.candidate.id === item.candidate.id ? styles.candidateSelected : ''}`} aria-pressed={selected?.candidate.id === item.candidate.id} onClick={() => chooseCandidate(item)}>
-        <span className={styles.rank}>{String(index + 1).padStart(2, '0')}</span><span className={styles.candidateText}>{index === 0 && <small>가장 먼저 살펴볼 곳</small>}<strong>{item.candidate.name}</strong><span>{item.candidate.address}</span></span><span className={styles.candidateTime}><strong>{Math.ceil(item.metrics!.maxMinutes)}<small>분</small></strong><span>최대 이동</span></span></button>)}</div>
-        {selected && <aside className={styles.comparison}><h3>{selected.candidate.name}</h3><div className={styles.metrics}><div><span>최대</span><b>{minutes(selected.metrics!.maxMinutes)}</b></div><div><span>시간 차이</span><b>{minutes(selected.metrics!.gapMinutes)}</b></div><div><span>평균</span><b>{Math.round(selected.metrics!.averageMinutes)}분</b></div></div><TravelTimes result={selected} people={people} /><p className={styles.finePrint}>시간은 표시할 때만 반올림 또는 올림해요. 순위는 원래 값으로 계산해요.</p></aside>}</div>
-      {results.excluded.length > 0 && <details className={styles.excluded}><summary>비교에서 제외된 후보 {results.excluded.length}곳 확인</summary>{results.excluded.map((item) => <article key={item.candidate.id}><h3>{item.candidate.name}</h3><TravelTimes result={item} people={people} /></article>)}</details>}
+        <span className={styles.rank}>{String(index + 1).padStart(2, '0')}</span><span className={styles.candidateText}>{index === 0 && <small>추천 1위</small>}<strong>{item.candidate.name}</strong><span>{item.candidate.address}</span></span><span className={styles.candidateTime}><strong>{Math.ceil(item.metrics!.maxMinutes)}<small>분</small></strong><span>최대 이동</span></span></button>)}</div>
+        {selected && <aside className={styles.comparison}><h3>{selected.candidate.name}</h3><div className={styles.metrics}><div><span>최대</span><b>{minutes(selected.metrics!.maxMinutes)}</b></div><div><span>시간 차이</span><b>{minutes(selected.metrics!.gapMinutes)}</b></div><div><span>평균</span><b>{Math.round(selected.metrics!.averageMinutes)}분</b></div></div>{selected.reasons && selected.reasons.length > 0 && <ul className={styles.reasons} aria-label="추천 이유">{selected.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}<TravelTimes result={selected} people={people} /><p className={styles.finePrint}>시간은 표시할 때만 반올림 또는 올림해요. 순위는 원래 값으로 계산해요.</p></aside>}</div>
+      {results.excluded.length > 0 && <details className={styles.excluded}><summary>비교에서 제외된 후보 {results.excluded.length}곳 확인</summary>{results.excluded.map((item) => <article key={item.candidate.id}><h3>{item.candidate.name}</h3>{item.exclusionReason && <p className={styles.exclusionReason}>제외 사유: {item.exclusionReason}</p>}<TravelTimes result={item} people={people} /></article>)}</details>}
       <div className={styles.notices}>{results.notices.map((notice) => <p key={notice}>{notice}</p>)}</div>
     </section>}
     {selected && <section className={styles.panel} aria-labelledby="places-title"><div className={styles.sectionHeading}><div><span className={styles.eyebrow}>03 / FIND YOUR PLACE</span><h2 id="places-title">{selected.candidate.name} 근처에서 만나요</h2><p>마음에 드는 곳을 고르면 그 장소까지 이동시간을 다시 확인해요.</p></div></div>

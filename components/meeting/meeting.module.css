@@ -1,0 +1,116 @@
+/* 단계별 화면 공통 스타일 (전역 globals.css의 메인 화면 클래스와 함께 사용) */
+
+.lead { margin-bottom: 24px; }
+.lead h2 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 6px; }
+.lead p { color: var(--text-sub); font-size: 14px; }
+
+.field { margin-bottom: 22px; }
+.label { display: block; font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text-main); }
+.optional { margin-left: 6px; font-weight: 500; color: var(--text-muted); font-size: 12px; }
+.row { display: flex; gap: 10px; }
+.row > * { flex: 1; min-width: 0; }
+.error { margin-top: 6px; font-size: 13px; color: #dc2626; }
+.fieldHint { display: flex; align-items: center; gap: 4px; margin-top: 6px; min-height: 18px; font-size: 12.5px; color: var(--text-sub); }
+
+/* 출발지 검색 */
+.search { position: relative; }
+.searchInputWrap { position: relative; }
+.searchBusy { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 12.5px; color: var(--text-muted); }
+.searchResults {
+  list-style: none;
+  margin-top: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: var(--shadow-card);
+}
+.searchResults li + li { border-top: 1px solid #f1f5f9; }
+.searchResults :global(.autocomplete-item) { width: 100%; min-height: 52px; }
+
+/* 이동수단 선택 */
+.segment { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.segmentOption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: 72px;
+  padding: 10px 6px;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--text-sub);
+  font-size: 14px;
+  font-weight: 700;
+}
+.segmentOption small { font-size: 11.5px; font-weight: 500; color: var(--text-muted); }
+.segmentOption[aria-pressed='true'] { border-color: var(--primary); background: var(--primary-light); color: var(--primary); }
+
+/* 참가자 목록 */
+.listHeader { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+.listHeader h2 { font-size: 18px; font-weight: 800; }
+.listHeader span { font-size: 13px; color: var(--text-sub); }
+.people { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.personCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-sm);
+}
+.personLink { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; color: inherit; text-decoration: none; }
+.personText { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.personText strong { font-size: 16px; }
+.personPlace { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+}
+.iconButton:active { background: #f1f5f9; }
+.confirmRow { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.confirmRow span { color: #b91c1c; font-weight: 600; }
+.danger { min-height: 36px; padding: 0 12px; border-radius: 10px; background: #fee2e2; color: #b91c1c; font-weight: 700; }
+.addCard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 60px;
+  margin-top: 10px;
+  border: 1.5px dashed #bfdbfe;
+  border-radius: var(--radius-md);
+  background: #f8fbff;
+  color: var(--primary);
+  font-weight: 700;
+  text-decoration: none;
+}
+.hint { margin-top: 14px; padding: 12px; border-radius: 10px; background: #f8fafc; color: var(--text-sub); font-size: 13.5px; text-align: center; }
+.summary { margin-bottom: 18px; padding: 12px 14px; border-radius: 12px; background: var(--primary-light); color: #1e40af; font-size: 14px; }
+.summary a { color: inherit; font-weight: 700; margin-left: 6px; }
+
+/* 색상 선택 */
+.colors { display: flex; gap: 10px; flex-wrap: wrap; }
+.colorChip {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.colorDot { width: 18px; height: 18px; border-radius: 50%; }
+.colorChip[aria-pressed='true'] { box-shadow: 0 0 0 2px #fff, 0 0 0 4px currentColor; }
