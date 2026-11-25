@@ -85,8 +85,6 @@ export default function MeetingsHome() {
           </ul>
         )}
         <p className={styles.storageHint}>약속은 이 기기에만 저장돼요.</p>
-        {/* 단계별 화면이 모두 완성되면 제거 */}
-        <p className={styles.storageHint}><Link href="/classic">기존 메인 화면 보기</Link> · <Link href="/planner">API 확인 화면</Link></p>
       </section>
     </FlowLayout>
   );
