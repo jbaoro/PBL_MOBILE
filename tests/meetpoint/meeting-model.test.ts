@@ -13,6 +13,7 @@ const candidate = (id: string): CandidateResult => ({
 const recommendation: RecommendationResult = {
   ranked: [candidate('c1'), candidate('c2')], excluded: [], generatedAt: now, timeBasis: 'query-time',
   searchedCandidateCount: 2, notices: [],
+  searchScope: { tier: 'nearby', tierLabel: '근거리', maxSpreadKm: 10, areas: [], rounds: 1, collectedCount: 2, apiCalls: 6, limited: false },
 };
 const place: Place = { ...origin('place1', 37.41), category: '카페' };
 
