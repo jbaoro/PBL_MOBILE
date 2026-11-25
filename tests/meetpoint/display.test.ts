@@ -34,3 +34,17 @@ test('좌표 투영은 영역 안에 들어오고 북쪽이 위, 동쪽이 오�
   assert.ok(points[0].x < points[1].x, '동쪽(경도 큰 쪽)이 오른쪽');
   assert.equal(projectPoints([{ lat: 37.5, lng: 127 }], 400, 170).length, 1);
 });
+
+test('장소 분류·거리·지역 대비 표시', async () => {
+  const { categoryText, distanceText, maxDeltaText } = await import('../../features/meeting/display');
+  assert.equal(categoryText('음식점 > 한식 > 냉면'), '한식 · 냉면');
+  assert.equal(categoryText('음식점 > 양식 > 이탈리안 > 파스타'), '이탈리안 · 파스타');
+  assert.equal(categoryText('카페'), '카페');
+  assert.equal(distanceText(140), '140m');
+  assert.equal(distanceText(1530), '1.5km');
+  assert.equal(distanceText(2000), '2km');
+  assert.equal(distanceText(undefined), null);
+  assert.equal(maxDeltaText(20, 23.4), '지역 기준보다 3분 더 걸려요');
+  assert.equal(maxDeltaText(20, 18), '지역 기준보다 2분 덜 걸려요');
+  assert.equal(maxDeltaText(20, 20.3), '지역 기준과 같아요');
+});

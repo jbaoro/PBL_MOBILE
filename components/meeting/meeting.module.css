@@ -173,3 +173,35 @@
 .notices { margin-top: 16px; display: flex; flex-direction: column; gap: 6px; }
 .notices p { display: flex; gap: 6px; align-items: flex-start; font-size: 12px; color: var(--text-sub); }
 .notices p svg { flex: none; margin-top: 2px; }
+
+/* 4. 주변 장소 · 장소 상세 */
+.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
+.filterBlock { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.toggleButton { flex: 1; justify-content: center; min-height: 44px; font-size: 14px; }
+.radiusRow { display: flex; gap: 8px; }
+.chip { min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1.5px solid var(--border); background: #fff; color: var(--text-sub); font-size: 13.5px; font-weight: 700; }
+.chip[aria-pressed='true'] { border-color: var(--primary); background: var(--primary-light); color: var(--primary); }
+.keywordRow { display: flex; gap: 8px; }
+.keywordRow input { flex: 1; min-width: 0; }
+.keywordRow button { min-height: 48px; }
+.clearKeyword { align-self: flex-start; min-height: 32px; padding: 0 10px; border-radius: 8px; background: #f1f5f9; color: var(--text-sub); font-size: 12.5px; font-weight: 600; }
+.inlineRetry { margin-left: 6px; background: transparent; color: inherit; font-weight: 700; text-decoration: underline; }
+
+.placeList { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.placeButton { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.placeChosen { border-color: var(--primary) !important; background: var(--primary-light) !important; }
+.placeMetaLine { display: flex; align-items: center; gap: 4px; }
+.placeMetaLine a { color: inherit; }
+.chosenTag { align-self: flex-start; padding: 2px 8px; border-radius: 999px; background: var(--primary); color: #fff; font-size: 11.5px; font-weight: 700; }
+.listLoading { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 24px 0; color: var(--text-sub); font-size: 14px; }
+.smallSpinner { width: 18px; height: 18px; border: 2.5px solid #e2e8f0; border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+.emptyBox { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 28px 12px; border: 1px dashed var(--border); border-radius: var(--radius-md); color: var(--text-sub); font-size: 14px; text-align: center; }
+.moreButton { width: 100%; margin-top: 12px; }
+.sourceNote { margin-top: 16px; font-size: 11.5px; color: var(--text-muted); text-align: center; }
+
+.placeHeader { display: flex; flex-direction: column; gap: 6px; padding: 4px 0 18px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.placeHeader h2 { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
+.placeHeader p { font-size: 14px; color: var(--text-sub); }
+.placeCategory { align-self: flex-start; padding: 2px 8px; border-radius: 6px; background: #f1f5f9; color: var(--text-sub); font-size: 12px; font-weight: 700; }
+.failInline { display: flex; gap: 6px; align-items: flex-start; margin-bottom: 14px; padding: 10px 12px; border-radius: 10px; background: #fef2f2; color: #b91c1c; font-size: 13.5px; }
+.failInline svg { flex: none; margin-top: 2px; }

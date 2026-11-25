@@ -65,3 +65,21 @@ export function formatClock(iso: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' });
 }
+
+/** 카카오 분류 '음식점 > 한식 > 냉면' → '한식 · 냉면' (앞의 큰 분류는 탭과 겹쳐서 뺀다) */
+export function categoryText(category: string): string {
+  const parts = category.split('>').map((part) => part.trim()).filter(Boolean);
+  return (parts.length > 1 ? parts.slice(1) : parts).slice(-2).join(' · ');
+}
+
+export function distanceText(meters?: number): string | null {
+  if (meters === undefined || !Number.isFinite(meters)) return null;
+  return meters < 1000 ? `${Math.round(meters)}m` : `${Math.round(meters / 100) / 10}km`;
+}
+
+/** 지역(역) 기준 대비 실제 장소의 최대 이동시간 변화. 표시용. */
+export function maxDeltaText(areaMax: number, placeMax: number): string {
+  const delta = Math.round(placeMax - areaMax);
+  if (delta === 0) return '지역 기준과 같아요';
+  return delta > 0 ? `지역 기준보다 ${delta}분 더 걸려요` : `지역 기준보다 ${-delta}분 덜 걸려요`;
+}
