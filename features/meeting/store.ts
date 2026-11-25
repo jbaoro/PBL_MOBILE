@@ -4,9 +4,9 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { deviceStorage, type KeyValueStorage } from '@/lib/platform/storage';
 import { createId } from '@/lib/platform/id';
-import type { CandidateResult, Participant, Place, RecommendationResult } from '@/lib/meetpoint/types';
+import type { CandidateResult, Place, RecommendationResult } from '@/lib/meetpoint/types';
 import * as model from './model';
-import type { MeetingDraft } from './model';
+import type { MeetingDraft, MeetingParticipant } from './model';
 
 type State = {
   hydrated: boolean;           // 기기 저장소에서 불러오기를 마쳤는지
@@ -82,7 +82,7 @@ export const meetingActions = {
   },
   updateInfo: (id: string, info: { title: string; scheduledAt?: string }) =>
     update(id, (m, now) => model.updateInfo(m, info, now)),
-  upsertParticipant: (id: string, person: Participant) =>
+  upsertParticipant: (id: string, person: MeetingParticipant) =>
     update(id, (m, now) => model.upsertParticipant(m, person, now)),
   removeParticipant: (id: string, participantId: string) =>
     update(id, (m, now) => model.removeParticipant(m, participantId, now)),

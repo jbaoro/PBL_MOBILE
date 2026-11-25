@@ -12,7 +12,7 @@ import { useMeeting } from './store';
 export function useMeetingStep(id: string, step: FlowStep): { meeting: MeetingDraft | undefined } {
   const router = useRouter();
   const { hydrated, meeting } = useMeeting(id);
-  const redirect = !hydrated ? null : !meeting ? '/meetings' : (() => {
+  const redirect = !hydrated ? null : !meeting ? '/' : (() => {
     const blocked = blockingStep(meeting, step);
     return blocked ? meetingPath(meeting.id, blocked) : null;
   })();

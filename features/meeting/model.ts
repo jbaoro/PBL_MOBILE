@@ -8,11 +8,14 @@ export { MAX_PARTICIPANTS };
 export const STORAGE_KEY = 'meetpoint.meetings';
 export const STORAGE_VERSION = 1;
 
+/** 약속 안의 참가자. API로 보낼 때는 color가 빠지고 Participant 필드만 사용된다. */
+export type MeetingParticipant = Participant & { color?: string };
+
 export type MeetingDraft = {
   id: string;
   title: string;
   scheduledAt?: string;                 // 'YYYY-MM-DDTHH:mm' (로컬 시각)
-  participants: Participant[];
+  participants: MeetingParticipant[];
   recommendation?: RecommendationResult; // 3. 추천 지역 결과
   selectedCandidateId?: string;          // 3 → 4
   selectedPlace?: Place;                 // 4 → 5
@@ -105,7 +108,7 @@ function affectsRoutes(before: Participant, after: Participant): boolean {
     before.origin.lat !== after.origin.lat || before.origin.lng !== after.origin.lng;
 }
 
-export function upsertParticipant(meeting: MeetingDraft, person: Participant, now: string): MeetingDraft {
+export function upsertParticipant(meeting: MeetingDraft, person: MeetingParticipant, now: string): MeetingDraft {
   const index = meeting.participants.findIndex((item) => item.id === person.id);
   if (index < 0) {
     if (meeting.participants.length >= MAX_PARTICIPANTS) return meeting;
@@ -155,8 +158,9 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 const isLocation = (value: unknown): value is Location => isObject(value) &&
   typeof value.id === 'string' && typeof value.name === 'string' && typeof value.address === 'string' &&
   typeof value.lat === 'number' && Number.isFinite(value.lat) && typeof value.lng === 'number' && Number.isFinite(value.lng);
-const isParticipant = (value: unknown): value is Participant => isObject(value) &&
+const isParticipant = (value: unknown): value is MeetingParticipant => isObject(value) &&
   typeof value.id === 'string' && typeof value.name === 'string' && isLocation(value.origin) &&
+  (value.color === undefined || typeof value.color === 'string') &&
   (value.transport === 'transit' || value.transport === 'car' || value.transport === 'walk');
 
 /** 손상되었거나 형식이 다른 약속은 버리고 사용할 수 있는 것만 돌려준다. */
