@@ -1,5 +1,6 @@
 import { MeetPointError } from '../errors';
 import { distanceMeters } from '../geo';
+import { createProviderCaches, withCache, type MapProvider } from './cache';
 import type { Coordinates, HubKind, Location, Participant, Place, PlaceCategory, PlacePage, RouteSuccess } from '../types';
 
 type Fetcher = typeof fetch;
@@ -186,6 +187,10 @@ export class KakaoProvider {
   }
 }
 
-export function configuredProvider(): KakaoProvider {
-  return new KakaoProvider({ key: process.env.KAKAO_REST_API_KEY ?? '', mobilityKey: process.env.KAKAO_MOBILITY_REST_API_KEY });
+// 서버 프로세스 안에서 모든 요청이 함께 쓰는 캐시
+const sharedCaches = createProviderCaches();
+
+/** API 라우트에서 쓰는 제공자: 카카오 호출 앞에 결과 캐시를 붙인다. */
+export function configuredProvider(): MapProvider {
+  return withCache(new KakaoProvider({ key: process.env.KAKAO_REST_API_KEY ?? '', mobilityKey: process.env.KAKAO_MOBILITY_REST_API_KEY }), sharedCaches);
 }
