@@ -63,13 +63,53 @@ export type NearbyPlacesQuery = Coordinates & {
   category: PlaceCategory; radius?: number; query?: string; page?: number;
 };
 
+/**
+ * 클라이언트 메모리 캐시 (GET 검색/주변장소 전용, TTL 5분, 최대 80건).
+ * 같은 검색어나 탭/반경 전환 시 네트워크 왕복 없이 0ms 즉시 응답하고 카카오 API 쿼터를 아낀다.
+ */
+const CLIENT_CACHE_TTL_MS = 5 * 60 * 1000;
+const CLIENT_CACHE_MAX = 80;
+const clientCache = new Map<string, { value: unknown; expiresAt: number }>();
+
+function getCached<T>(key: string): T | undefined {
+  const entry = clientCache.get(key);
+  if (!entry) return undefined;
+  if (Date.now() > entry.expiresAt) {
+    clientCache.delete(key);
+    return undefined;
+  }
+  // LRU 갱신
+  clientCache.delete(key);
+  clientCache.set(key, entry);
+  return entry.value as T;
+}
+
+function setCached(key: string, value: unknown): void {
+  if (clientCache.size >= CLIENT_CACHE_MAX) {
+    const oldest = clientCache.keys().next().value;
+    if (oldest !== undefined) clientCache.delete(oldest);
+  }
+  clientCache.set(key, { value, expiresAt: Date.now() + CLIENT_CACHE_TTL_MS });
+}
+
+async function cachedGet<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const hit = getCached<T>(path);
+  if (hit !== undefined) return hit;
+  const data = await request<T>(path, { signal });
+  setCached(path, data);
+  return data;
+}
+
 /** 서버 API 목록. 각 함수의 signal 로 요청을 취소할 수 있다. */
 export const meetpointApi = {
   status: (signal?: AbortSignal) => request<ServiceStatus>('/api/meetpoint/status', { signal }),
 
   /** 출발지 검색 (장소명 + 주소, 최대 20개) */
   searchLocations: (query: string, signal?: AbortSignal) =>
-    request<{ locations: Location[]; notices: string[] }>(`/api/locations/search?query=${encodeURIComponent(query.trim())}`, { signal }),
+    cachedGet<{ locations: Location[]; notices: string[] }>(
+      `/api/locations/search?query=${encodeURIComponent(query.trim())}`,
+      signal
+    ),
 
   /** 추천 지역 (후보 탐색 → 실제 경로 비교 → 순위). 최대 약 1분 걸릴 수 있다. */
   recommend: (participants: Participant[], signal?: AbortSignal) =>
@@ -81,7 +121,7 @@ export const meetpointApi = {
     if (radius) params.set('radius', String(radius));
     if (query?.trim()) params.set('query', query.trim());
     if (page) params.set('page', String(page));
-    return request<PlacePage>(`/api/places?${params.toString()}`, { signal });
+    return cachedGet<PlacePage>(`/api/places?${params.toString()}`, signal);
   },
 
   /** 모든 참가자 → 한 장소까지 이동시간 (5단계 장소 확인) */

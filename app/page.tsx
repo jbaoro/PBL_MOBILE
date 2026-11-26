@@ -4,98 +4,249 @@
  *
  * 앱의 첫 화면. 이 기기에 저장된 약속을 최근 수정 순으로 보여주고,
  * 새 약속을 만들면 1단계(모임 정보)로 이동한다.
- * 약속 카드를 누르면 그 약속에서 이어서 할 단계(resumeStep)로 바로 간다.
  */
+import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { IconPin, IconPlus, IconSparkles, IconUsers } from '@/app/components/Icons';
 import FlowLayout, { FlowLoading, flowStyles } from '@/components/flow/FlowLayout';
-import { meetingPath, meetingStatus, resumeStep, type MeetingDraft, type MeetingStatus } from '@/features/meeting/model';
+import { AvatarStack } from '@/components/meeting/ParticipantBits';
+import { PwaInstallButton } from '@/components/ui/PwaInstallButton';
+import {
+  TOTAL_STEPS,
+  meetingPath,
+  meetingStatus,
+  resumeStep,
+  stepNumber,
+  type MeetingDraft,
+  type MeetingStatus,
+} from '@/features/meeting/model';
 import { scheduleText } from '@/features/meeting/share';
 import { meetingActions, useMeetingList, useMeetingStore } from '@/features/meeting/store';
 import styles from './home.module.css';
 
-/** 약속 카드 위 상태 뱃지 문구 */
 const statusLabel: Record<MeetingStatus, string> = {
-  draft: '작성 중', ready: '추천 준비 완료', recommended: '추천 완료', confirmed: '확정',
+  draft: '작성 중',
+  ready: '추천 준비 완료',
+  recommended: '추천 완료',
+  confirmed: '약속 확정',
 };
 
-/** 저장된 일시를 '2026년 12월 5일 (토) 오후 7:00' 형식으로. 공유 글과 같은 형식을 쓴다. */
-function formatSchedule(value?: string): string | null {
-  return scheduleText(value);
-}
+type FilterKind = 'all' | 'active' | 'confirmed';
 
-/** 약속 한 개. 삭제는 실수 방지를 위해 한 번 더 확인한다(브라우저 confirm 창 대신 카드 안에서). */
-function MeetingCard({ meeting }: { meeting: MeetingDraft }) {
+const MeetingCard = React.memo(function MeetingCard({ meeting }: { meeting: MeetingDraft }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const status = meetingStatus(meeting);
-  const schedule = formatSchedule(meeting.scheduledAt);
-  const place = meeting.confirmedAt ? meeting.selectedPlace?.name : undefined;
+  const step = resumeStep(meeting);
+  const stepIdx = stepNumber(step);
+  const schedule = scheduleText(meeting.scheduledAt);
+  const confirmedPlace = meeting.confirmedAt ? meeting.selectedPlace?.name : undefined;
+  const progressRatio = status === 'confirmed' ? 1 : stepIdx / TOTAL_STEPS;
 
   return (
     <li className={styles.card}>
-      <Link href={meetingPath(meeting.id, resumeStep(meeting))} className={styles.cardLink}>
-        <span className={`${styles.badge} ${styles[status]}`}>{statusLabel[status]}</span>
+      <Link href={meetingPath(meeting.id, step)} className={styles.cardLink}>
+        <div className={styles.cardTop}>
+          <span className={`${styles.badge} ${styles[status]}`}>{statusLabel[status]}</span>
+          <span className={styles.stepMini}>
+            {status === 'confirmed' ? '완료' : `${stepIdx}/${TOTAL_STEPS}단계`}
+          </span>
+        </div>
+
         <strong className={styles.cardTitle}>{meeting.title || '제목 없는 약속'}</strong>
-        <span className={styles.cardMeta}>
-          {[schedule, `${meeting.participants.length}명`, place].filter(Boolean).join(' · ')}
-        </span>
+
+        <div className={styles.cardFooter}>
+          <span className={styles.cardMeta}>
+            {confirmedPlace ? (
+              <span className={styles.cardPlace}>
+                <IconPin size={12} color="#059669" />
+                {confirmedPlace}
+                {schedule ? ` · ${schedule}` : ''}
+              </span>
+            ) : (
+              [schedule, `${meeting.participants.length}명 참여`].filter(Boolean).join(' · ')
+            )}
+          </span>
+          <AvatarStack people={meeting.participants} max={4} />
+        </div>
+
+        <div
+          className={`${styles.miniBar} ${status === 'confirmed' ? styles.miniBarConfirmed : ''}`}
+          aria-hidden="true"
+        >
+          <span style={{ transform: `scaleX(${progressRatio})` }} />
+        </div>
       </Link>
+
       {confirmingDelete ? (
         <div className={styles.deleteConfirm}>
           <span>이 약속을 삭제할까요?</span>
-          <button type="button" className={styles.deleteYes} onClick={() => meetingActions.remove(meeting.id)}>삭제</button>
-          <button type="button" className={flowStyles.ghost} onClick={() => setConfirmingDelete(false)}>취소</button>
+          <button
+            type="button"
+            className={styles.deleteYes}
+            onClick={() => meetingActions.remove(meeting.id)}
+          >
+            삭제
+          </button>
+          <button
+            type="button"
+            className={flowStyles.ghost}
+            onClick={() => setConfirmingDelete(false)}
+          >
+            취소
+          </button>
         </div>
       ) : (
-        <button type="button" className={styles.deleteButton} onClick={() => setConfirmingDelete(true)}
-          aria-label={`${meeting.title || '제목 없는 약속'} 삭제`}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+        <button
+          type="button"
+          className={styles.deleteButton}
+          onClick={() => setConfirmingDelete(true)}
+          aria-label={`${meeting.title || '제목 없는 약속'} 삭제`}
+        >
+          <svg
+            width="17"
+            height="17"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+            <path d="M10 11v6M14 11v6" />
+            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
           </svg>
         </button>
       )}
     </li>
   );
-}
+});
 
 export default function MeetingsHome() {
   const router = useRouter();
   const { hydrated, meetings } = useMeetingList();
   const { saveError } = useMeetingStore();
+  const [filter, setFilter] = useState<FilterKind>('all');
 
-  // 기기 저장소에서 약속을 불러오기 전에는 빈 목록 대신 로딩을 보여준다.
+  const filtered = useMemo(() => {
+    if (filter === 'all') return meetings;
+    return meetings.filter((m) =>
+      filter === 'confirmed' ? Boolean(m.confirmedAt) : !m.confirmedAt
+    );
+  }, [meetings, filter]);
+
   if (!hydrated) return <FlowLoading title="MeetPoint" />;
 
-  /** 빈 약속을 만들고 1단계로 이동 */
   function startNew() {
     const id = meetingActions.create();
     router.push(meetingPath(id, 'info'));
   }
 
   return (
-    <FlowLayout title="MeetPoint"
-      bottom={<button type="button" className={flowStyles.primary} onClick={startNew}>새 약속 만들기</button>}>
-      <section className={styles.intro}>
-        <h2>모두에게 공평한 약속 장소</h2>
-        <p>참가자의 출발지와 이동 수단을 입력하면 실제 이동시간을 비교해 만나기 좋은 곳을 찾아드려요.</p>
+    <FlowLayout
+      title="MeetPoint"
+      brand
+      action={<PwaInstallButton />}
+      bottom={
+        <button type="button" className={flowStyles.primary} onClick={startNew}>
+          <IconPlus size={18} color="#ffffff" />
+          <span>새 약속 만들기</span>
+        </button>
+      }
+    >
+      <section className={styles.hero}>
+        <div className={styles.heroGlow} aria-hidden="true" />
+        <span className={styles.heroEyebrow}>
+          <IconSparkles size={12} color="#ffffff" />
+          실측 경로 기반 공정 추천
+        </span>
+        <h2>
+          모두에게 공평한
+          <br />
+          약속 장소를 한 번에
+        </h2>
+        <p>
+          참가자의 출발지와 이동 수단만 넣으면 실제 소요 시간을 비교해 누구도 억울하지 않은
+          중간 지점을 찾아드려요.
+        </p>
+
+        {meetings.length === 0 && (
+          <div className={styles.howSteps} aria-label="이용 순서">
+            <div className={styles.howStep}>
+              <span className={styles.howNum}>STEP 1</span>
+              <span className={styles.howText}>출발지·수단 입력</span>
+            </div>
+            <div className={styles.howStep}>
+              <span className={styles.howNum}>STEP 2</span>
+              <span className={styles.howText}>실측 경로 비교</span>
+            </div>
+            <div className={styles.howStep}>
+              <span className={styles.howNum}>STEP 3</span>
+              <span className={styles.howText}>장소 확정·공유</span>
+            </div>
+          </div>
+        )}
       </section>
 
-      {saveError && <p className={flowStyles.notice} role="alert">{saveError}</p>}
+      {saveError && (
+        <p className={flowStyles.notice} role="alert">
+          {saveError}
+        </p>
+      )}
 
       <section aria-labelledby="saved-title">
-        <h3 id="saved-title" className={styles.sectionTitle}>저장된 약속 <span>{meetings.length}</span></h3>
+        <div className={styles.listTop}>
+          <h3 id="saved-title" className={styles.sectionTitle}>
+            저장된 약속 <span className={styles.sectionCount}>{meetings.length}</span>
+          </h3>
+
+          {meetings.length >= 3 && (
+            <div className={styles.filterPills} role="group" aria-label="약속 상태 필터">
+              {(
+                [
+                  ['all', '전체'],
+                  ['active', '진행 중'],
+                  ['confirmed', '확정'],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={styles.filterPill}
+                  aria-pressed={filter === value}
+                  onClick={() => setFilter(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {meetings.length === 0 ? (
           <div className={styles.empty}>
-            <p>아직 저장된 약속이 없어요.</p>
-            <p>아래 버튼으로 첫 약속을 만들어 보세요.</p>
+            <span className={styles.emptyIcon} aria-hidden="true">
+              <IconUsers size={22} color="#2563eb" />
+            </span>
+            <strong>아직 만든 약속이 없어요</strong>
+            <p>아래 버튼으로 첫 약속을 시작해 보세요.</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className={styles.empty}>
+            <p>해당 상태의 약속이 없어요.</p>
           </div>
         ) : (
           <ul className={styles.list}>
-            {meetings.map((meeting) => <MeetingCard key={meeting.id} meeting={meeting} />)}
+            {filtered.map((meeting) => (
+              <MeetingCard key={meeting.id} meeting={meeting} />
+            ))}
           </ul>
         )}
-        <p className={styles.storageHint}>약속은 이 기기에만 저장돼요.</p>
+
+        <p className={styles.storageHint}>약속 내역은 서버 전송 없이 이 기기에 안전하게 저장돼요.</p>
       </section>
     </FlowLayout>
   );

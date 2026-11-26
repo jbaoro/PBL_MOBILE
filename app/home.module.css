@@ -1,82 +1,337 @@
-.intro { padding: 8px 0 24px; }
-.intro h2 { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px; }
-.intro p { color: var(--text-sub); font-size: 15px; }
+.hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+  padding: 22px 20px 20px;
+  margin-bottom: 20px;
+  background: linear-gradient(145deg, #2563eb 0%, #1d4ed8 60%, #1e40af 100%);
+  color: #ffffff;
+  box-shadow: 0 18px 34px -12px rgba(37, 99, 235, 0.42);
+}
 
-.sectionTitle { font-size: 15px; font-weight: 700; margin: 8px 0 12px; }
-.sectionTitle span { color: var(--primary); margin-left: 4px; }
+.heroGlow {
+  position: absolute;
+  top: -42px;
+  right: -36px;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0) 70%);
+  pointer-events: none;
+}
 
-.list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.heroEyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 11.5px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.hero h2 {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.3;
+  margin-bottom: 6px;
+  word-break: keep-all;
+}
+
+.hero p {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.86);
+  word-break: keep-all;
+}
+
+.howSteps {
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.howStep {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.howNum {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.howText {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+/* ── 저장된 약속 헤더 & 필터 ─────────────────────────────────── */
+
+.listTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 11px;
+}
+
+.sectionTitle {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-main);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sectionCount {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.filterPills {
+  display: flex;
+  gap: 6px;
+}
+
+.filterPill {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  color: var(--text-sub);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.filterPill[aria-pressed='true'] {
+  background: var(--text-main);
+  border-color: var(--text-main);
+  color: #ffffff;
+}
+
+/* ── 약속 카드 ───────────────────────────────────────────────── */
+
+.list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
 
 .card {
   position: relative;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
   background: var(--card-bg);
   box-shadow: var(--shadow-sm);
+  transition: transform 0.16s var(--ease-spring), box-shadow 0.16s ease, border-color 0.16s ease;
 }
+
+.card:hover {
+  border-color: var(--primary-border);
+  box-shadow: var(--shadow-card);
+}
+
 .cardLink {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 16px 56px 16px 16px;
+  gap: 8px;
+  padding: 16px 52px 15px 16px;
   color: inherit;
   text-decoration: none;
 }
-.cardTitle { font-size: 17px; font-weight: 700; }
-.cardMeta { font-size: 14px; color: var(--text-sub); }
+
+.cardTop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
 .badge {
-  align-self: flex-start;
-  padding: 2px 8px;
+  padding: 2px 9px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
   background: #f1f5f9;
   color: var(--text-sub);
 }
-.ready { background: var(--primary-light); color: var(--primary); }
-.recommended { background: #f5f3ff; color: #7c3aed; }
-.confirmed { background: var(--accent-green-bg); color: var(--accent-green); }
+
+.ready {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.recommended {
+  background: #f5f3ff;
+  color: #7c3aed;
+}
+
+.confirmed {
+  background: var(--accent-green-bg);
+  color: var(--accent-green);
+}
+
+.stepMini {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.cardTitle {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-main);
+  line-height: 1.3;
+}
+
+.cardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.cardMeta {
+  font-size: 13px;
+  color: var(--text-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cardPlace {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent-green);
+  font-weight: 700;
+}
+
+.miniBar {
+  height: 3px;
+  width: 100%;
+  border-radius: 999px;
+  background: #f1f5f9;
+  overflow: hidden;
+}
+
+.miniBar span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primary);
+  transform-origin: left center;
+}
+
+.miniBarConfirmed span {
+  background: var(--accent-green);
+}
 
 .deleteButton {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 44px;
-  height: 44px;
+  top: 10px;
+  right: 10px;
+  width: 38px;
+  height: 38px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
+  border-radius: 11px;
   background: transparent;
   color: var(--text-muted);
 }
-.deleteButton:active { background: #f1f5f9; }
+
+.deleteButton:hover {
+  background: #fef2f2;
+  color: var(--accent-red);
+}
 
 .deleteConfirm {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 12px 12px 16px;
-  font-size: 14px;
+  padding: 10px 14px 12px 16px;
+  border-top: 1px solid #f1f5f9;
+  font-size: 13.5px;
 }
-.deleteConfirm span { flex: 1; color: #b91c1c; font-weight: 600; }
+
+.deleteConfirm span {
+  flex: 1;
+  color: var(--accent-red);
+  font-weight: 700;
+}
+
 .deleteYes {
-  min-height: 40px;
-  padding: 0 14px;
+  min-height: 36px;
+  padding: 0 13px;
   border-radius: 10px;
   background: #fee2e2;
   color: #b91c1c;
+  font-size: 13px;
   font-weight: 700;
 }
 
 .empty {
-  padding: 32px 16px;
+  padding: 36px 20px;
   text-align: center;
   color: var(--text-sub);
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-md);
-  font-size: 14px;
+  background: var(--card-bg);
+  border: 1.5px dashed #cbd5e1;
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
 
-.storageHint { margin-top: 16px; font-size: 13px; color: var(--text-muted); text-align: center; }
+.emptyIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--primary-light);
+  color: var(--primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.empty strong {
+  font-size: 15.5px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.empty p {
+  font-size: 13.5px;
+  color: var(--text-sub);
+}
+
+.storageHint {
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}

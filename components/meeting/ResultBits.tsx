@@ -1,86 +1,177 @@
 'use client';
 /**
  * 추천 결과 표시 조각 (3단계 추천 지역, 5단계 장소 확인, 6단계 확정에서 사용)
- * - MiniMap: 출발지와 후보의 위치 관계 그림 (실제 지도·경로 아님)
- * - TravelTimeList: 참가자별 이동시간 막대
+ * - MiniMap: 60fps HiDPI 인터랙티브 위치·경로 시각화 Canvas
+ * - BalanceRing: SVG 원형 균형도 게이지
+ * - TravelTimeList: GPU 가속(scaleX) 참가자별 이동시간 비교 막대
  */
-import { COLOR_THEMES, AvatarInitial, TransportIcon } from './ParticipantBits';
-import { minutesText, projectPoints } from '@/features/meeting/display';
+import React from 'react';
+import { AvatarInitial, TransportIcon } from './ParticipantBits';
+import { InteractiveRouteMap } from './InteractiveRouteMap';
+import { AnimatedNumber } from '@/components/ui/AnimatedNumber';
+import { distanceText, minutesText } from '@/features/meeting/display';
 import type { MeetingParticipant } from '@/features/meeting/model';
-import type { Location, RouteResult } from '@/lib/meetpoint/types';
+import type { CandidateResult, Location, RouteResult } from '@/lib/meetpoint/types';
 import styles from './meeting.module.css';
 
-/** 참가자 출발지와 후보 지점을 점선으로 잇는 간단한 위치 그림 (실제 지도 아님) */
-export function MiniMap({ people, destination }: { people: MeetingParticipant[]; destination: Location }) {
-  const width = 400;
-  const height = 170;
-  // 마지막 점이 후보 지점. 나머지는 참가자 출발지 순서와 같다.
-  const points = projectPoints([...people.map((person) => person.origin), destination], width, height, 34);
-  const target = points[points.length - 1];
+export function MiniMap({
+  people,
+  destination,
+  routes,
+  candidates,
+  onSelectCandidate,
+  height = 204,
+}: {
+  people: MeetingParticipant[];
+  destination: Location;
+  routes?: RouteResult[];
+  candidates?: CandidateResult[];
+  onSelectCandidate?: (candidateId: string) => void;
+  height?: number;
+}) {
   return (
-    <figure className={styles.mapFigure}>
-      <div className="mini-map-container">
-      <svg className="map-svg" viewBox={`0 0 ${width} ${height}`} role="img"
-        aria-label={`${people.map((person) => person.name).join(', ')}의 출발지와 ${destination.name}의 위치 관계`}>
-        {people.map((person, index) => (
-          <line key={`line-${person.id}`} x1={points[index].x} y1={points[index].y} x2={target.x} y2={target.y}
-            stroke="#cbd5e1" strokeWidth="2" strokeDasharray="4 3" />
-        ))}
-        <circle cx={target.x} cy={target.y} r="30" fill="rgba(37, 99, 235, 0.08)" />
-        <circle cx={target.x} cy={target.y} r="18" fill="rgba(37, 99, 235, 0.16)" />
-        {people.map((person, index) => {
-          const theme = COLOR_THEMES.find((item) => item.id === person.color) ?? COLOR_THEMES[0];
-          const { x, y } = points[index];
-          return (
-            <g key={`pin-${person.id}`}>
-              <circle cx={x} cy={y} r="11" fill={theme.bg} stroke={theme.text} strokeWidth="2" />
-              <text x={x} y={y + 4} textAnchor="middle" fontSize="10" fontWeight="700" fill={theme.text}>{person.name.charAt(0)}</text>
-            </g>
-          );
-        })}
-        <g transform={`translate(${target.x}, ${target.y})`}>
-          <circle r="9" fill="#2563eb" stroke="#ffffff" strokeWidth="3" />
-          <circle r="3.5" fill="#ffffff" />
-        </g>
-      </svg>
-      </div>
-      <figcaption className={styles.mapCaption}>출발지와 후보의 위치 관계를 나타낸 그림이에요. 실제 지도 축척과 경로는 아니에요.</figcaption>
-    </figure>
+    <InteractiveRouteMap
+      people={people}
+      destination={destination}
+      routes={routes}
+      candidates={candidates}
+      onSelectCandidate={onSelectCandidate}
+      height={height}
+      caption="실제 좌표 기준 위치 관계예요. 소요 시간은 카카오 실측 경로 기준이에요."
+    />
   );
 }
 
-/** 참가자별 이동시간: 가장 오래 걸리는 사람 기준 막대 + 실패 사유 + 상세 경로 링크 */
-export function TravelTimeList({ people, routes }: { people: MeetingParticipant[]; routes: RouteResult[] }) {
-  // 막대 길이는 가장 오래 걸리는 사람을 100%로 잡는다. 그 사람은 주황색으로 강조한다.
-  const longest = Math.max(1, ...routes.map((route) => (route.status === 'ok' ? route.durationMinutes : 0)));
+/** SVG 원형 균형도 링 게이지 (GPU stroke-dashoffset 부드러운 전환) */
+export const BalanceRing = React.memo(function BalanceRing({ score }: { score: number }) {
+  const clamped = Math.max(0, Math.min(100, score));
+  const r = 24;
+  const circ = 2 * Math.PI * r;
+  const offset = circ * (1 - clamped / 100);
+  const stroke = clamped >= 75 ? '#059669' : clamped >= 55 ? '#2563eb' : '#d97706';
+  const track = clamped >= 75 ? '#d1fae5' : clamped >= 55 ? '#dbeafe' : '#fef3c7';
+
+  return (
+    <div
+      className={styles.balanceRing}
+      role="meter"
+      aria-label="이동시간 균형도"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={clamped}
+      title="가장 빨리 오는 사람 시간 ÷ 가장 오래 걸리는 사람 시간"
+    >
+      <svg width="62" height="62" viewBox="0 0 62 62" aria-hidden="true">
+        <circle cx="31" cy="31" r={r} fill="none" stroke={track} strokeWidth="5.5" />
+        <circle
+          cx="31"
+          cy="31"
+          r={r}
+          fill="none"
+          stroke={stroke}
+          strokeWidth="5.5"
+          strokeLinecap="round"
+          strokeDasharray={circ}
+          strokeDashoffset={offset}
+          transform="rotate(-90 31 31)"
+          style={{ transition: 'stroke-dashoffset 0.45s cubic-bezier(0.22, 1, 0.36, 1), stroke 0.25s ease' }}
+        />
+      </svg>
+      <div className={styles.balanceRingCenter}>
+        <strong style={{ color: stroke }}>
+          <AnimatedNumber value={clamped} />
+        </strong>
+        <span>균형도</span>
+      </div>
+    </div>
+  );
+});
+
+/** 참가자별 이동시간: GPU scaleX 애니메이션 막대 + 평균 기준선 + 거리 + 상세 경로 링크 */
+export const TravelTimeList = React.memo(function TravelTimeList({
+  people,
+  routes,
+}: {
+  people: MeetingParticipant[];
+  routes: RouteResult[];
+}) {
+  const okMinutes = routes
+    .filter((r): r is Extract<RouteResult, { status: 'ok' }> => r.status === 'ok')
+    .map((r) => r.durationMinutes);
+  const longest = Math.max(1, ...okMinutes);
+  const shortest = okMinutes.length > 1 ? Math.min(...okMinutes) : -1;
+  const avg =
+    okMinutes.length > 1
+      ? okMinutes.reduce((sum, v) => sum + v, 0) / okMinutes.length
+      : null;
+  const avgRatio = avg !== null ? Math.min(100, (avg / longest) * 100) : null;
+
   return (
     <ul className={styles.times}>
       {people.map((person) => {
         const route = routes.find((item) => item.participantId === person.id);
         const ok = route?.status === 'ok' ? route : undefined;
-        const isLongest = ok && ok.durationMinutes === longest;
+        const isLongest = ok && okMinutes.length > 1 && ok.durationMinutes === longest;
+        const isShortest =
+          ok && okMinutes.length > 1 && ok.durationMinutes === shortest && !isLongest;
+        const ratio = ok ? Math.max(0.05, Math.min(1, ok.durationMinutes / longest)) : 0;
+        const distLabel = ok ? distanceText(ok.distanceMeters) : null;
+
         return (
           <li key={person.id} className={styles.timeRow}>
-            <AvatarInitial name={person.name} color={person.color} size={34} />
+            <AvatarInitial name={person.name} color={person.color} size={36} />
             <div className={styles.timeBody}>
               <div className={styles.timeHead}>
-                <strong>{person.name}</strong>
-                <span className={styles.timeMode}><TransportIcon transport={person.transport} size={12} /></span>
-                {ok ? <b className={isLongest ? styles.timeLongest : undefined}>{minutesText(ok.durationMinutes)}</b>
-                  : <b className={styles.timeFail}>조회 실패</b>}
+                <strong className={styles.timeName}>{person.name}</strong>
+                <span className={styles.timeMode}>
+                  <TransportIcon transport={person.transport} size={12} />
+                </span>
+                {isLongest && <span className={styles.tagLongest}>최장</span>}
+                {isShortest && <span className={styles.tagFastest}>최단</span>}
+                {distLabel && <span className={styles.timeDist}>{distLabel}</span>}
+                {ok ? (
+                  <b className={`${styles.timeValue} ${isLongest ? styles.timeLongest : ''}`}>
+                    <AnimatedNumber value={ok.durationMinutes} format={minutesText} />
+                  </b>
+                ) : (
+                  <b className={styles.timeFail}>조회 실패</b>
+                )}
               </div>
+
               {ok ? (
                 <div className={styles.track} aria-hidden="true">
-                  <span style={{ width: `${Math.max(3, (ok.durationMinutes / longest) * 100)}%` }} className={isLongest ? styles.trackLongest : undefined} />
+                  <span
+                    className={`${styles.trackFill} ${isLongest ? styles.trackLongest : ''}`}
+                    style={{ transform: `scaleX(${ratio})` }}
+                  />
+                  {avgRatio !== null && (
+                    <i
+                      className={styles.avgMarker}
+                      style={{ left: `${avgRatio}%` }}
+                      title={`평균 ${minutesText(avg!)}`}
+                    />
+                  )}
                 </div>
               ) : (
-                <p className={styles.timeError}>{route?.status === 'error' ? route.error.message : '경로를 확인하지 못했어요.'}</p>
+                <p className={styles.timeError}>
+                  {route?.status === 'error' ? route.error.message : '경로를 확인하지 못했어요.'}
+                </p>
               )}
-              {ok?.url && <a className={styles.routeLink} href={ok.url} target="_blank" rel="noreferrer">상세 경로 보기 ↗</a>}
+
+              {ok?.url && (
+                <a
+                  className={styles.routeLink}
+                  href={ok.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  카카오맵 상세 경로 ↗
+                </a>
+              )}
             </div>
           </li>
         );
       })}
     </ul>
   );
-}
+});
