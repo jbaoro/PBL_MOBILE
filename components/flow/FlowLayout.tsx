@@ -31,9 +31,9 @@ export default function FlowLayout({
   const ratio = step ? Math.max(0, Math.min(1, step.current / step.total)) : 0;
 
   return (
-    <div className={styles.screen}>
+    <div className={styles.screen} data-flow-screen="true">
       <header className={styles.header}>
-        <div className={styles.headerInner}>
+        <div className={brand ? styles.headerInnerBrand : styles.headerInner}>
           <div className={styles.headerSide}>
             {backHref ? (
               <Link href={backHref} className={styles.iconButton} aria-label={backLabel}>
@@ -52,15 +52,14 @@ export default function FlowLayout({
                 </svg>
               </Link>
             ) : brand ? (
-              <span className={styles.brandMark}>
-                <IconBrandPin size={22} color="#2563eb" />
+              <h1 className={styles.brandMark}>
+                <IconBrandPin size={22} color="var(--primary)" />
                 <span>{title}</span>
-              </span>
+              </h1>
             ) : null}
           </div>
 
           {!brand && <h1 className={styles.title}>{title}</h1>}
-          {brand && <span className={styles.srOnly}>{title}</span>}
 
           <div className={`${styles.headerSide} ${styles.headerRight}`}>
             {action}

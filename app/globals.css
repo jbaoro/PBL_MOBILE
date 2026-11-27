@@ -54,6 +54,110 @@
   --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* Adaptive Dark Mode (Linear-grade slate elevation) */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --backdrop: #060b16;
+  --surface-canvas: #0b1120;
+  --bg: #0b1120;
+  --card-bg: #131c31;
+  --surface-subtle: #182338;
+  --surface-hover: #1e2b45;
+
+  --text-main: #f1f5f9;
+  --text-body: #cbd5e1;
+  --text-sub: #94a3b8;
+  --text-muted: #64748b;
+
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --primary-soft: rgba(59, 130, 246, 0.16);
+  --primary-light: rgba(59, 130, 246, 0.15);
+  --primary-border: rgba(96, 165, 250, 0.32);
+
+  --accent-green: #34d399;
+  --accent-green-bg: rgba(16, 185, 129, 0.14);
+  --accent-green-border: rgba(52, 211, 153, 0.28);
+
+  --accent-amber: #fbbf24;
+  --accent-amber-bg: rgba(245, 158, 11, 0.14);
+  --accent-amber-border: rgba(251, 191, 36, 0.28);
+
+  --accent-red: #f87171;
+  --accent-red-bg: rgba(239, 68, 68, 0.14);
+
+  --border: rgba(148, 163, 184, 0.16);
+  --border-subtle: rgba(148, 163, 184, 0.12);
+  --border-focus: #60a5fa;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow-sm: 0 2px 10px -2px rgba(0, 0, 0, 0.35);
+  --shadow-card: 0 14px 32px -8px rgba(0, 0, 0, 0.5);
+  --shadow-floating: 0 14px 28px -8px rgba(37, 99, 235, 0.45);
+  --shadow-shell: 0 24px 64px -16px rgba(0, 0, 0, 0.65);
+}
+
+:root[data-theme='dark'] body {
+  background: radial-gradient(circle at 20% 0%, #101c36 0%, #070c18 60%, #050912 100%);
+}
+
+:root[data-theme='dark'] .places-category-toggle {
+  background: #182338;
+}
+
+:root[data-theme='dark'] .places-category-indicator {
+  background: #233252;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .selected-location-pill {
+  color: #6ee7b7;
+}
+
+:root[data-theme='dark'] .rank-badge {
+  background: #22304d;
+  color: #cbd5e1;
+}
+
+:root[data-theme='dark'] .candidate-item {
+  background: #182338;
+}
+
+:root[data-theme='dark'] .candidate-item:hover {
+  background: #1f2d49;
+}
+
+:root[data-theme='dark'] .candidate-item.selected {
+  background: rgba(59, 130, 246, 0.18);
+}
+
+.offline-banner {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 460px;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: calc(7px + env(safe-area-inset-top, 0px)) 14px 7px;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* 바텀시트 열릴 때 배경 화면 미세 축소(Vaul 스타일 3D 깊이감) */
+body.sheet-open [data-flow-screen='true'] {
+  transform: scale(0.975);
+  border-radius: 18px;
+  transition: transform 0.28s var(--ease-spring), border-radius 0.28s var(--ease-spring);
+}
+
 *,
 *::before,
 *::after {

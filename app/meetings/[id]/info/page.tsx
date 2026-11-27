@@ -2,18 +2,19 @@
 /**
  * 1단계. 모임 정보 (`/meetings/[id]/info`)
  *
- * - 원탭 추천 모임명 칩 + 빠른 날짜·시간 선택 칩으로 입력 피로 최소화
- * - 실시간 한국어 일정 미리보기 제공
+ * - 원탭 추천 모임명 칩 + 실제 날짜가 표시되는 빠른 날짜(오늘·내일·금·토·일)·시간 칩
+ * - 날짜/시간 원탭 지우기 + 실시간 한국어 일정 미리보기
  */
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { IconCalendar } from '@/app/components/Icons';
+import { IconCalendar, IconClose } from '@/app/components/Icons';
 import FlowLayout, { FlowLoading, flowStyles } from '@/components/flow/FlowLayout';
 import styles from '@/components/meeting/meeting.module.css';
 import { TOTAL_STEPS, meetingPath, stepNumber } from '@/features/meeting/model';
 import { scheduleText } from '@/features/meeting/share';
 import { meetingActions } from '@/features/meeting/store';
 import { useMeetingStep } from '@/features/meeting/useMeetingStep';
+import { haptic } from '@/lib/platform/haptics';
 
 const TITLE_MAX = 40;
 const TITLE_PRESETS = ['동기 모임', '팀 회식', '주말 브런치', '스터디', '생일 파티'];
@@ -31,24 +32,34 @@ function toDateInput(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+function shortMd(d: Date): string {
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
 function buildQuickDates(): { label: string; value: string }[] {
   const today = new Date();
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
 
   const dayOfWeek = today.getDay();
-  const daysToSat = (6 - dayOfWeek + 7) % 7 || 7;
-  const sat = new Date(today);
-  sat.setDate(today.getDate() + daysToSat);
+  const daysToFri = (5 - dayOfWeek + 7) % 7 || 7;
+  const fri = new Date(today);
+  fri.setDate(today.getDate() + daysToFri);
+  const sat = new Date(fri);
+  sat.setDate(fri.getDate() + 1);
   const sun = new Date(sat);
   sun.setDate(sat.getDate() + 1);
 
-  return [
+  const raw = [
     { label: '오늘', value: toDateInput(today) },
     { label: '내일', value: toDateInput(tomorrow) },
-    { label: '이번 토요일', value: toDateInput(sat) },
-    { label: '이번 일요일', value: toDateInput(sun) },
+    { label: `금 (${shortMd(fri)})`, value: toDateInput(fri) },
+    { label: `토 (${shortMd(sat)})`, value: toDateInput(sat) },
+    { label: `일 (${shortMd(sun)})`, value: toDateInput(sun) },
   ];
+
+  // 오늘/내일과 겹치는 요일 칩은 중복 제거
+  return raw.filter((item, idx, arr) => arr.findIndex((o) => o.value === item.value) === idx);
 }
 
 export default function MeetingInfoPage({ params }: { params: { id: string } }) {
@@ -81,6 +92,7 @@ export default function MeetingInfoPage({ params }: { params: { id: string } }) 
     event.preventDefault();
     setTouched(true);
     if (titleError || timeError) return;
+    haptic('light');
     meetingActions.updateInfo(params.id, {
       title,
       scheduledAt: date ? (time ? `${date}T${time}` : date) : undefined,
@@ -102,7 +114,7 @@ export default function MeetingInfoPage({ params }: { params: { id: string } }) 
     >
       <div className={styles.lead}>
         <h2>어떤 모임인가요?</h2>
-        <p>모임 이름은 약속 목록과 최종 공유 문구에 사용돼요.</p>
+        <p>모임 이름은 약속 목록과 최종 공유 문구·초대장에 사용돼요.</p>
       </div>
 
       <form id="meeting-info" onSubmit={next} noValidate>
@@ -130,7 +142,10 @@ export default function MeetingInfoPage({ params }: { params: { id: string } }) 
                   type="button"
                   className={styles.quickChip}
                   aria-pressed={title === preset}
-                  onClick={() => setTitle(preset)}
+                  onClick={() => {
+                    haptic('light');
+                    setTitle(preset);
+                  }}
                 >
                   {preset}
                 </button>
@@ -141,9 +156,25 @@ export default function MeetingInfoPage({ params }: { params: { id: string } }) 
 
         <div className={styles.surfaceCard}>
           <div className={styles.field}>
-            <span className={styles.label}>
-              언제 만나나요?<span className={styles.optional}>선택</span>
-            </span>
+            <div className={styles.labelRow}>
+              <span className={styles.label} style={{ marginBottom: 0 }}>
+                언제 만나나요?<span className={styles.optional}>선택</span>
+              </span>
+              {(date || time) && (
+                <button
+                  type="button"
+                  className={styles.clearInlineBtn}
+                  onClick={() => {
+                    haptic('light');
+                    setDate('');
+                    setTime('');
+                  }}
+                >
+                  <IconClose size={12} />
+                  <span>지우기</span>
+                </button>
+              )}
+            </div>
 
             <div className={styles.quickChips} role="group" aria-label="빠른 날짜 선택">
               {quickDates.map((item) => (
@@ -152,7 +183,10 @@ export default function MeetingInfoPage({ params }: { params: { id: string } }) 
                   type="button"
                   className={styles.quickChip}
                   aria-pressed={date === item.value}
-                  onClick={() => setDate(date === item.value ? '' : item.value)}
+                  onClick={() => {
+                    haptic('light');
+                    setDate(date === item.value ? '' : item.value);
+                  }}
                 >
                   {item.label}
                 </button>
@@ -184,7 +218,10 @@ export default function MeetingInfoPage({ params }: { params: { id: string } }) 
                     type="button"
                     className={styles.quickChip}
                     aria-pressed={time === preset.value}
-                    onClick={() => setTime(preset.value)}
+                    onClick={() => {
+                      haptic('light');
+                      setTime(preset.value);
+                    }}
                   >
                     {preset.label}
                   </button>
@@ -196,7 +233,7 @@ export default function MeetingInfoPage({ params }: { params: { id: string } }) 
 
             {preview && (
               <div className={styles.schedulePreview}>
-                <IconCalendar size={15} color="#2563eb" />
+                <IconCalendar size={15} color="var(--primary)" />
                 <span>{preview}</span>
               </div>
             )}

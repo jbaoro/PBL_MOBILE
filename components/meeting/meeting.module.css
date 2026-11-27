@@ -1,4 +1,4 @@
-/* 단계별 화면 공통 스타일 (모던 한국 모바일 카드 UI + GPU 가속 모션) */
+/* 단계별 화면 공통 스타일 (라이트·다크 모드 완전 대응 + GPU 가속 모션) */
 
 .lead {
   margin-bottom: 18px;
@@ -52,10 +52,37 @@
   color: var(--text-main);
 }
 
+.labelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.clearInlineBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  color: var(--text-sub);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.clearInlineBtn:hover {
+  color: var(--text-main);
+  background: var(--surface-hover);
+}
+
 .optional {
   padding: 1px 7px;
   border-radius: 999px;
-  background: #f1f5f9;
+  background: var(--surface-subtle);
   font-weight: 600;
   color: var(--text-sub);
   font-size: 11px;
@@ -89,7 +116,7 @@
   line-height: 1.45;
 }
 
-/* ── 빠른 선택 칩 (Step 1 모임 정보, Step 4 장소 키워드) ─────── */
+/* ── 빠른 선택 칩 ────────────────────────────────────────────── */
 
 .quickChips {
   display: flex;
@@ -130,12 +157,12 @@
   padding: 9px 12px;
   border-radius: 12px;
   background: var(--primary-light);
-  color: #1d4ed8;
+  color: var(--primary);
   font-size: 13px;
   font-weight: 700;
 }
 
-/* ── 출발지 검색 ─────────────────────────────────────────────── */
+/* ── 출발지 검색 & 최근 출발지 ───────────────────────────────── */
 
 .search {
   position: relative;
@@ -175,16 +202,29 @@
 }
 
 .searchClearBtn:hover {
-  background: #f1f5f9;
+  background: var(--surface-hover);
 }
 
 .miniSpinner {
   width: 15px;
   height: 15px;
-  border: 2px solid #e2e8f0;
+  border: 2px solid var(--border);
   border-top-color: var(--primary);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
+}
+
+.recentBox {
+  margin-top: 9px;
+}
+
+.recentLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-muted);
 }
 
 .searchResults {
@@ -195,12 +235,12 @@
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 4px;
-  background: #ffffff;
+  background: var(--card-bg);
   box-shadow: var(--shadow-card);
 }
 
 .searchResults li + li {
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--border-subtle);
 }
 
 /* ── 이동수단 세그먼트 ───────────────────────────────────────── */
@@ -221,7 +261,7 @@
   padding: 10px 6px;
   border: 1.5px solid var(--border);
   border-radius: 14px;
-  background: #ffffff;
+  background: var(--card-bg);
   color: var(--text-sub);
   font-size: 13.5px;
   font-weight: 700;
@@ -241,7 +281,8 @@
 }
 
 .segmentOption[aria-pressed='true'] small {
-  color: #3b82f6;
+  color: var(--primary);
+  opacity: 0.85;
 }
 
 /* ── 색상 선택 ───────────────────────────────────────────────── */
@@ -270,13 +311,13 @@
 }
 
 .colorChip[aria-pressed='true'] {
-  box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px currentColor;
+  box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px currentColor;
 }
 
-/* ── 2단계 참가자 목록 + 분포 프리뷰 ─────────────────────────── */
+/* ── 2단계 참가자 목록 + 분포 프리뷰 + 자주 만나는 멤버 ─────── */
 
 .previewMapCard {
-  margin-bottom: 16px;
+  margin-bottom: 14px;
   background: var(--card-bg);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
@@ -308,6 +349,51 @@
   font-size: 11.5px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.recentMembersCard {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-xs);
+}
+
+.recentMembersHeader {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-body);
+}
+
+.recentMemberChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  font-size: 12.5px;
+}
+
+.recentMemberChip b {
+  font-weight: 700;
+}
+
+.recentMemberChip span {
+  font-size: 11.5px;
+  color: var(--text-sub);
+}
+
+.recentMemberChip:hover {
+  background: var(--primary-light);
+  border-color: var(--primary-border);
 }
 
 .listHeader {
@@ -350,7 +436,7 @@
 }
 
 .personRow + .personRow {
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--border-subtle);
 }
 
 .personMainBtn {
@@ -423,7 +509,7 @@
 }
 
 .iconButton:hover {
-  background: #fef2f2;
+  background: var(--accent-red-bg);
   color: var(--accent-red);
 }
 
@@ -443,8 +529,8 @@
   min-height: 32px;
   padding: 0 11px;
   border-radius: 9px;
-  background: #fee2e2;
-  color: #b91c1c;
+  background: var(--accent-red-bg);
+  color: var(--accent-red);
   font-size: 12.5px;
   font-weight: 700;
 }
@@ -456,8 +542,8 @@
   gap: 7px;
   width: 100%;
   min-height: 52px;
-  border-top: 1px dashed #cbd5e1;
-  background: #f8fbff;
+  border-top: 1px dashed var(--border);
+  background: var(--primary-light);
   color: var(--primary);
   font-size: 14.5px;
   font-weight: 700;
@@ -465,7 +551,7 @@
 }
 
 .addCard:hover {
-  background: var(--primary-light);
+  filter: brightness(0.98);
 }
 
 .addCardStandalone {
@@ -475,9 +561,9 @@
   gap: 8px;
   width: 100%;
   min-height: 60px;
-  border: 1.5px dashed #93c5fd;
+  border: 1.5px dashed var(--primary-border);
   border-radius: var(--radius-lg);
-  background: #ffffff;
+  background: var(--card-bg);
   color: var(--primary);
   font-size: 15px;
   font-weight: 700;
@@ -491,7 +577,7 @@
   margin-top: 12px;
   padding: 11px 14px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--card-bg);
   border: 1px solid var(--border-subtle);
   color: var(--text-sub);
   font-size: 13px;
@@ -504,12 +590,12 @@
   border-radius: 13px;
   background: var(--primary-light);
   border: 1px solid var(--primary-border);
-  color: #1e40af;
+  color: var(--primary);
   font-size: 13px;
   line-height: 1.45;
 }
 
-/* ── 바텀시트 ────────────────────────────────────────────────── */
+/* ── Vaul 스타일 드래그 바텀시트 ─────────────────────────────── */
 
 .sheetOverlay {
   position: fixed;
@@ -529,18 +615,30 @@
   max-width: 460px;
   max-height: 88dvh;
   overflow-y: auto;
-  background: #ffffff;
+  background: var(--card-bg);
+  border-top: 1px solid var(--border-subtle);
   border-radius: 26px 26px 0 0;
-  padding: 10px 20px calc(22px + env(safe-area-inset-bottom, 0px));
-  box-shadow: 0 -16px 40px rgba(15, 23, 42, 0.18);
+  padding: 0 20px calc(22px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -16px 40px rgba(15, 23, 42, 0.22);
   animation: sheetSlideUp 0.26s var(--ease-spring) both;
+  will-change: transform;
+}
+
+.sheetDragZone {
+  padding-top: 10px;
+  touch-action: none;
+  cursor: grab;
+}
+
+.sheetDragZone:active {
+  cursor: grabbing;
 }
 
 .sheetHandle {
   width: 38px;
   height: 4px;
   border-radius: 999px;
-  background: #cbd5e1;
+  background: var(--border);
   margin: 0 auto 12px;
 }
 
@@ -555,13 +653,14 @@
   font-size: 18px;
   font-weight: 800;
   letter-spacing: -0.02em;
+  color: var(--text-main);
 }
 
 .sheetClose {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: #f1f5f9;
+  background: var(--surface-subtle);
   color: var(--text-sub);
   display: inline-flex;
   align-items: center;
@@ -581,6 +680,62 @@
 
 /* ── 3단계 추천 지역 ─────────────────────────────────────────── */
 
+.stickyContextBar {
+  position: sticky;
+  top: 57px;
+  z-index: 22;
+  margin: -12px -18px 12px;
+  padding: 9px 18px;
+  background: color-mix(in srgb, var(--card-bg) 92%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12.5px;
+  animation: fadeSlideIn 0.18s var(--ease-spring) both;
+}
+
+.stickyContextBar strong {
+  color: var(--text-main);
+  font-weight: 800;
+}
+
+.stickyContextBar span {
+  color: var(--primary);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.heroEyebrowRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.areaShareBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  color: var(--text-sub);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.areaShareBtn:hover {
+  background: var(--primary-light);
+  border-color: var(--primary-border);
+  color: var(--primary);
+}
+
 .failure {
   display: flex;
   flex-direction: column;
@@ -588,7 +743,7 @@
   text-align: center;
   gap: 10px;
   padding: 40px 18px;
-  background: #ffffff;
+  background: var(--card-bg);
   border-radius: var(--radius-xl);
   border: 1px solid var(--border-subtle);
   box-shadow: var(--shadow-sm);
@@ -618,7 +773,7 @@
 }
 
 .headerAction:hover {
-  background: rgba(15, 23, 42, 0.06);
+  background: var(--surface-hover);
   color: var(--text-main);
 }
 
@@ -635,7 +790,7 @@
 .metaTag {
   padding: 3px 8px;
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--card-bg);
   border: 1px solid var(--border-subtle);
   font-weight: 700;
   color: var(--text-body);
@@ -655,7 +810,7 @@
   gap: 8px;
   padding: 8px 11px;
   border-radius: 11px;
-  background: #f8fafc;
+  background: var(--surface-subtle);
   border: 1px solid var(--border);
   font-size: 12px;
   color: var(--text-body);
@@ -725,7 +880,7 @@
 .sourceTag {
   padding: 1px 7px;
   border-radius: 999px;
-  background: #e2e8f0;
+  background: var(--surface-hover);
   color: var(--text-body);
   font-size: 10.5px;
   font-weight: 700;
@@ -753,11 +908,28 @@
   margin-bottom: 10px;
 }
 
+.subTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 16px 0 11px;
+}
+
 .subTitle {
   margin: 16px 0 11px;
   font-size: 13.5px;
   font-weight: 800;
   color: var(--text-body);
+}
+
+.deltaLegend {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  color: var(--text-sub);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .reasons {
@@ -781,7 +953,7 @@
   margin-top: 4px;
 }
 
-/* ── 참가자별 이동시간 바 ─────────────────────────────────────── */
+/* ── 참가자별 이동시간 바 & 증감 배지 ────────────────────────── */
 
 .times {
   list-style: none;
@@ -804,7 +976,7 @@
 .timeHead {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   font-size: 14px;
 }
 
@@ -842,8 +1014,33 @@
   font-variant-numeric: tabular-nums;
 }
 
-.timeValue {
+.timeRight {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.deltaFaster,
+.deltaSlower {
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.deltaFaster {
+  background: var(--accent-green-bg);
+  color: var(--accent-green);
+}
+
+.deltaSlower {
+  background: var(--accent-amber-bg);
+  color: var(--accent-amber);
+}
+
+.timeValue {
   font-size: 15px;
   font-weight: 800;
   color: var(--text-main);
@@ -864,7 +1061,7 @@
   height: 8px;
   margin-top: 7px;
   border-radius: 999px;
-  background: #edf2f7;
+  background: var(--surface-subtle);
   overflow: hidden;
 }
 
@@ -888,7 +1085,7 @@
   top: 0;
   bottom: 0;
   width: 2px;
-  background: rgba(15, 23, 42, 0.32);
+  background: color-mix(in srgb, var(--text-main) 34%, transparent);
   transform: translateX(-1px);
   pointer-events: none;
 }
@@ -958,7 +1155,7 @@
 }
 
 .excludedReason {
-  color: #b45309 !important;
+  color: var(--accent-amber) !important;
 }
 
 .notices {
@@ -982,7 +1179,7 @@
   margin-top: 2px;
 }
 
-/* ── 4단계 주변 장소 · 5단계 장소 상세 ──────────────────────── */
+/* ── 4단계 주변 장소 (찜·미리보기) · 5단계 장소 상세 ─────────── */
 
 .srOnly {
   position: absolute;
@@ -1015,11 +1212,14 @@
 }
 
 .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   min-height: 34px;
   padding: 0 13px;
   border-radius: 999px;
   border: 1.5px solid var(--border);
-  background: #ffffff;
+  background: var(--card-bg);
   color: var(--text-sub);
   font-size: 13px;
   font-weight: 700;
@@ -1029,6 +1229,16 @@
   border-color: var(--primary);
   background: var(--primary-light);
   color: var(--primary);
+}
+
+.savedFilterChip {
+  margin-left: auto;
+}
+
+.savedFilterChip[aria-pressed='true'] {
+  border-color: #fda4af;
+  background: rgba(225, 29, 72, 0.1);
+  color: #e11d48;
 }
 
 .keywordRow {
@@ -1051,7 +1261,7 @@
   min-height: 30px;
   padding: 0 10px;
   border-radius: 999px;
-  background: #f1f5f9;
+  background: var(--surface-subtle);
   color: var(--text-body);
   font-size: 12px;
   font-weight: 600;
@@ -1072,6 +1282,10 @@
   gap: 10px;
 }
 
+.placeCardWrap {
+  position: relative;
+}
+
 .placeButton {
   width: 100%;
   text-align: left;
@@ -1083,6 +1297,48 @@
 .placeChosen {
   border-color: var(--primary) !important;
   background: var(--primary-light) !important;
+}
+
+.bookmarkBtn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bookmarkSaved {
+  background: rgba(225, 29, 72, 0.12);
+  border-color: rgba(225, 29, 72, 0.25);
+}
+
+.placePeekLink {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  color: var(--text-sub);
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.placePeekLink:hover {
+  background: var(--primary-light);
+  border-color: var(--primary-border);
+  color: var(--primary);
 }
 
 .placeMetaLine {
@@ -1117,9 +1373,9 @@
   align-items: center;
   gap: 12px;
   padding: 32px 16px;
-  border: 1.5px dashed #cbd5e1;
+  border: 1.5px dashed var(--border);
   border-radius: var(--radius-lg);
-  background: #ffffff;
+  background: var(--card-bg);
   color: var(--text-sub);
   font-size: 14px;
   text-align: center;
@@ -1135,6 +1391,7 @@
   font-size: 11.5px;
   color: var(--text-muted);
   text-align: center;
+  line-height: 1.5;
 }
 
 .placeHeaderCard {
@@ -1160,6 +1417,33 @@
   color: var(--text-sub);
 }
 
+.addressRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.copyAddrBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  color: var(--text-sub);
+  font-size: 11.5px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.copyAddrBtn:hover {
+  background: var(--primary-light);
+  border-color: var(--primary-border);
+  color: var(--primary);
+}
+
 .placeCategory {
   align-self: flex-start;
   padding: 3px 9px;
@@ -1174,7 +1458,7 @@
   margin: 0 0 14px;
   padding: 9px 12px;
   border-radius: 12px;
-  background: #f8fafc;
+  background: var(--surface-subtle);
   border: 1px solid var(--border);
   font-size: 12.5px;
   font-weight: 600;
@@ -1189,7 +1473,7 @@
   padding: 11px 13px;
   border-radius: 12px;
   background: var(--accent-red-bg);
-  color: #b91c1c;
+  color: var(--accent-red);
   font-size: 13px;
   line-height: 1.45;
 }
@@ -1199,14 +1483,14 @@
   margin-top: 2px;
 }
 
-/* ── 6단계 약속 확정 (티켓 카드 + 컨페티) ───────────────────── */
+/* ── 6단계 약속 확정 (초대장 PNG + 4종 연동) ────────────────── */
 
 .doneHeroWrap {
   position: relative;
   overflow: hidden;
   border-radius: var(--radius-xl);
-  background: linear-gradient(155deg, #ffffff 0%, #eff6ff 100%);
-  border: 1px solid rgba(37, 99, 235, 0.14);
+  background: linear-gradient(155deg, var(--card-bg) 0%, var(--primary-light) 100%);
+  border: 1px solid var(--primary-border);
   box-shadow: var(--shadow-card);
   padding: 24px 18px 20px;
   text-align: center;
@@ -1263,11 +1547,32 @@
   gap: 5px;
   padding: 5px 11px;
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--card-bg);
   border: 1px solid var(--border);
   font-size: 13px;
   font-weight: 600;
   color: var(--text-body);
+}
+
+.inviteImageBtn {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--card-bg);
+  border: 1.5px solid var(--primary-border);
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: var(--shadow-xs);
+}
+
+.inviteImageBtn:hover:not(:disabled) {
+  background: var(--primary-light);
 }
 
 .donePlaceName {
@@ -1275,14 +1580,14 @@
   font-size: 18px !important;
 }
 
-.linkRow {
+.linkGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
   margin-top: 14px;
 }
 
-.linkRow > * {
+.linkGrid > * {
   min-height: 44px !important;
   font-size: 13.5px !important;
   padding: 0 10px !important;
@@ -1293,7 +1598,7 @@
   margin: 10px 0;
   padding: 13px;
   border-radius: 12px;
-  background: #f8fafc;
+  background: var(--surface-subtle);
   border: 1px solid var(--border);
   white-space: pre-wrap;
   word-break: break-all;
@@ -1321,7 +1626,7 @@
   color: var(--primary);
 }
 
-/* ── 플로팅 토스트 ───────────────────────────────────────────── */
+/* ── 플로팅 토스트 (Undo 버튼 지원) ──────────────────────────── */
 
 .toast {
   position: fixed;
@@ -1334,8 +1639,13 @@
   pointer-events: none;
 }
 
-.toast span {
-  display: block;
+.toast > span,
+.toastInner {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
   padding: 12px 16px;
   border-radius: 14px;
   background: rgba(15, 23, 42, 0.94);
@@ -1346,4 +1656,19 @@
   text-align: center;
   box-shadow: 0 14px 32px -10px rgba(15, 23, 42, 0.45);
   animation: fadeSlideIn 0.2s var(--ease-spring) both;
+}
+
+.toastInner {
+  justify-content: space-between;
+  text-align: left;
+}
+
+.toastUndoBtn {
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(59, 130, 246, 0.28);
+  color: #93c5fd;
+  font-size: 12.5px;
+  font-weight: 800;
+  flex-shrink: 0;
 }

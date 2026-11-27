@@ -1,9 +1,11 @@
 'use client';
 /**
- * 2단계 참가자 목록 위에서 바로 여는 슬라이드 바텀시트.
- * 페이지 이동 없이 빠르게 여러 명을 연속 추가('저장 후 계속 추가')하거나 즉시 수정할 수 있다.
+ * 2단계 참가자 목록 위에서 여는 Vaul 스타일 물리 드래그 바텀시트.
+ * - 상단 핸들/헤더를 손가락으로 끌어내려 자연스럽게 닫기 (배경 화면 미세 3D 축소 연동)
+ * - '저장 후 계속 추가'로 여러 명을 연속 입력
+ * - 저장한 실제 참가자/출발지는 로컬 히스토리에 기록해 다음 모임에서 1탭 재사용 가능
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { IconCheck, IconClose } from '@/app/components/Icons';
 import LocationSearch from '@/components/meeting/LocationSearch';
 import {
@@ -14,9 +16,15 @@ import {
 } from '@/components/meeting/ParticipantBits';
 import { flowStyles } from '@/components/flow/FlowLayout';
 import styles from '@/components/meeting/meeting.module.css';
-import { MAX_PARTICIPANTS, type MeetingDraft, type MeetingParticipant } from '@/features/meeting/model';
+import {
+  MAX_PARTICIPANTS,
+  type MeetingDraft,
+  type MeetingParticipant,
+} from '@/features/meeting/model';
 import { meetingActions } from '@/features/meeting/store';
+import { haptic } from '@/lib/platform/haptics';
 import { createId } from '@/lib/platform/id';
+import { saveRecentMember } from '@/lib/platform/recents';
 import type { Location, Transport } from '@/lib/meetpoint/types';
 
 const NAME_MAX = 12;
@@ -46,16 +54,26 @@ export function ParticipantSheet({
   const [transport, setTransport] = useState<Transport>(editing?.transport ?? 'transit');
   const [touched, setTouched] = useState(false);
 
-  // Escape 키 닫기 + 배경 스크롤 잠금
+  // Vaul 스타일 포인터 드래그 닫기 상태
+  const [dragY, setDragY] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragMeta = useRef<{ startY: number; startTime: number; active: boolean }>({
+    startY: 0,
+    startTime: 0,
+    active: false,
+  });
+
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    document.body.classList.add('sheet-open');
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => {
       document.body.style.overflow = prevOverflow;
+      document.body.classList.remove('sheet-open');
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [onClose]);
@@ -75,6 +93,7 @@ export function ParticipantSheet({
     setTouched(true);
     if (nameError || originError || !origin) return;
 
+    haptic('medium');
     const nextPerson: MeetingParticipant = {
       id: editing?.id ?? createId('p_'),
       name: trimmed,
@@ -83,6 +102,7 @@ export function ParticipantSheet({
       transport,
     };
     meetingActions.upsertParticipant(meeting.id, nextPerson);
+    saveRecentMember(nextPerson);
 
     if (keepAdding && meeting.participants.length + 1 < MAX_PARTICIPANTS) {
       const nextUsed = [...meeting.participants.map((p) => p.color), color];
@@ -99,7 +119,37 @@ export function ParticipantSheet({
     }
   }
 
+  function onDragStart(e: React.PointerEvent<HTMLDivElement>) {
+    dragMeta.current = { startY: e.clientY, startTime: performance.now(), active: true };
+    setDragging(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function onDragMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragMeta.current.active) return;
+    const dy = Math.max(0, e.clientY - dragMeta.current.startY);
+    setDragY(dy);
+  }
+
+  function onDragEnd(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragMeta.current.active) return;
+    dragMeta.current.active = false;
+    setDragging(false);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    const elapsed = Math.max(1, performance.now() - dragMeta.current.startTime);
+    const velocity = dragY / elapsed; // px/ms
+    if (dragY > 110 || (dragY > 36 && velocity > 0.45)) {
+      haptic('light');
+      onClose();
+    } else {
+      setDragY(0);
+    }
+  }
+
   const canAddMore = isNew && meeting.participants.length + 1 < MAX_PARTICIPANTS;
+  const backdropAlpha = Math.max(0.08, 0.48 * (1 - dragY / 380));
 
   return (
     <div
@@ -108,19 +158,38 @@ export function ParticipantSheet({
       aria-modal="true"
       aria-labelledby="sheet-title"
       onClick={onClose}
+      style={{ background: `rgba(15, 23, 42, ${backdropAlpha})` }}
     >
-      <div className={styles.sheetPanel} onClick={(e) => e.stopPropagation()}>
-        <div className={styles.sheetHandle} aria-hidden="true" />
-        <div className={styles.sheetHeader}>
-          <h2 id="sheet-title">{isNew ? '참가자 추가' : '참가자 수정'}</h2>
-          <button
-            type="button"
-            className={styles.sheetClose}
-            onClick={onClose}
-            aria-label="닫기"
-          >
-            <IconClose size={18} />
-          </button>
+      <div
+        className={styles.sheetPanel}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          transform: `translate3d(0, ${dragY}px, 0)`,
+          transition: dragging
+            ? 'none'
+            : 'transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)',
+        }}
+      >
+        <div
+          className={styles.sheetDragZone}
+          onPointerDown={onDragStart}
+          onPointerMove={onDragMove}
+          onPointerUp={onDragEnd}
+          onPointerCancel={onDragEnd}
+        >
+          <div className={styles.sheetHandle} aria-hidden="true" />
+          <div className={styles.sheetHeader}>
+            <h2 id="sheet-title">{isNew ? '참가자 추가' : '참가자 수정'}</h2>
+            <button
+              type="button"
+              className={styles.sheetClose}
+              onClick={onClose}
+              onPointerDown={(e) => e.stopPropagation()}
+              aria-label="닫기"
+            >
+              <IconClose size={18} />
+            </button>
+          </div>
         </div>
 
         <form
@@ -159,7 +228,10 @@ export function ParticipantSheet({
                   className={styles.colorChip}
                   aria-pressed={color === theme.id}
                   aria-label={`${theme.label} 색상`}
-                  onClick={() => setColor(theme.id)}
+                  onClick={() => {
+                    haptic('light');
+                    setColor(theme.id);
+                  }}
                   style={{
                     backgroundColor: theme.bg,
                     borderColor: theme.border,
@@ -198,7 +270,10 @@ export function ParticipantSheet({
                   type="button"
                   className={styles.segmentOption}
                   aria-pressed={transport === option.value}
-                  onClick={() => setTransport(option.value)}
+                  onClick={() => {
+                    haptic('light');
+                    setTransport(option.value);
+                  }}
                 >
                   <TransportIcon transport={option.value} size={19} />
                   <span>{option.label}</span>

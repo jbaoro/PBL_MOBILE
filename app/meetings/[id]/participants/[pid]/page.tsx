@@ -18,6 +18,7 @@ import { MAX_PARTICIPANTS, TOTAL_STEPS, meetingPath, stepNumber } from '@/featur
 import { meetingActions } from '@/features/meeting/store';
 import { useMeetingStep } from '@/features/meeting/useMeetingStep';
 import { createId } from '@/lib/platform/id';
+import { saveRecentMember } from '@/lib/platform/recents';
 import type { Location, Transport } from '@/lib/meetpoint/types';
 
 const NAME_MAX = 12;
@@ -78,13 +79,15 @@ export default function ParticipantEditPage({ params }: { params: { id: string; 
     event.preventDefault();
     setTouched(true);
     if (nameError || originError || !origin) return;
-    meetingActions.upsertParticipant(params.id, {
+    const saved = {
       id: existing?.id ?? createId('p_'),
       name: trimmed,
       color,
       origin,
       transport,
-    });
+    };
+    meetingActions.upsertParticipant(params.id, saved);
+    saveRecentMember(saved);
     router.push(listHref);
   }
 

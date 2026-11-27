@@ -2,8 +2,11 @@
 /**
  * 6단계. 약속 확정·공유 (`/meetings/[id]/done`)
  *
- * - 경량 60fps Canvas 컨페티 축하 효과
- * - 공유 시트(미지원 PC 자동 복사), 요약 복사, 지도·길찾기, 캘린더(.ics) 추가
+ * 실사용 편의 기능:
+ * - 1탭 고해상도 초대장 PNG 카드 이미지 생성·공유/저장 (출발지 주소 비공개)
+ * - 주소 원탭 복사 (카카오T·티맵·배달앱 등 붙여넣기 편의)
+ * - 카카오맵 + 카카오 길찾기 + 네이버지도 + 캘린더(.ics) 원탭 연동
+ * - 오프라인에서도 기기 내 저장 데이터로 그대로 열람 가능
  */
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
@@ -12,6 +15,7 @@ import {
   IconCheck,
   IconClock,
   IconCopy,
+  IconImage,
   IconMap,
   IconNavigation,
   IconPhone,
@@ -33,11 +37,19 @@ import {
   scheduleText,
 } from '@/features/meeting/share';
 import { useMeetingStep } from '@/features/meeting/useMeetingStep';
+import { haptic } from '@/lib/platform/haptics';
+import { shareOrDownloadInvitationPng } from '@/lib/platform/invite-card';
 import { copyText, saveFile, shareText } from '@/lib/platform/share';
+
+function naverMapLink(name: string, address: string): string {
+  const q = `${name} ${address.split(' ').slice(0, 2).join(' ')}`.trim();
+  return `https://map.naver.com/v5/search/${encodeURIComponent(q)}`;
+}
 
 export default function DonePage({ params }: { params: { id: string } }) {
   const { meeting } = useMeetingStep(params.id, 'done');
   const [status, setStatus] = useState<string | null>(null);
+  const [savingImage, setSavingImage] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -56,6 +68,7 @@ export default function DonePage({ params }: { params: { id: string } }) {
   }
 
   async function share() {
+    haptic('light');
     const outcome = await shareText(text, meeting?.title || '약속');
     if (outcome === 'copied') {
       notify('약속 내용을 복사했어요. 단톡방에 바로 붙여 넣어 주세요.');
@@ -65,6 +78,7 @@ export default function DonePage({ params }: { params: { id: string } }) {
   }
 
   async function copy() {
+    haptic('light');
     notify(
       (await copyText(text))
         ? '약속 요약 내용을 복사했어요.'
@@ -72,8 +86,27 @@ export default function DonePage({ params }: { params: { id: string } }) {
     );
   }
 
+  async function copyAddress() {
+    haptic('light');
+    notify((await copyText(place.address)) ? '주소를 복사했어요.' : '주소를 복사하지 못했어요.');
+  }
+
+  async function saveInviteCard() {
+    if (!meeting || savingImage) return;
+    haptic('medium');
+    setSavingImage(true);
+    try {
+      const outcome = await shareOrDownloadInvitationPng(meeting);
+      if (outcome === 'downloaded') notify('초대장 이미지(PNG)를 저장했어요. 단톡방에 공유해 보세요.');
+      else if (outcome === 'failed') notify('초대장 이미지를 만들지 못했어요.');
+    } finally {
+      setSavingImage(false);
+    }
+  }
+
   async function addToCalendar() {
     if (!meeting) return;
+    haptic('light');
     const ics = buildIcs(meeting, new Date());
     if (!ics) return;
     const outcome = await saveFile(icsFileName(meeting), ics, 'text/calendar;charset=utf-8');
@@ -90,7 +123,7 @@ export default function DonePage({ params }: { params: { id: string } }) {
       bottom={
         <>
           <button type="button" className={flowStyles.secondary} onClick={() => void copy()}>
-            <IconCopy size={16} color="#2563eb" />
+            <IconCopy size={16} color="var(--primary)" />
             <span>복사</span>
           </button>
           <button type="button" className={flowStyles.primary} onClick={() => void share()}>
@@ -111,10 +144,19 @@ export default function DonePage({ params }: { params: { id: string } }) {
           <h2>{place.name}에서 만나요</h2>
           {when && (
             <p className={styles.doneWhen}>
-              <IconClock size={14} color="#2563eb" />
+              <IconClock size={14} color="var(--primary)" />
               <span>{when}</span>
             </p>
           )}
+          <button
+            type="button"
+            className={styles.inviteImageBtn}
+            disabled={savingImage}
+            onClick={() => void saveInviteCard()}
+          >
+            <IconImage size={15} color="var(--primary)" />
+            <span>{savingImage ? '초대장 생성 중…' : '초대장 카드 이미지 저장·공유'}</span>
+          </button>
         </div>
       </section>
 
@@ -123,25 +165,36 @@ export default function DonePage({ params }: { params: { id: string } }) {
         <h3 id="done-place" className={styles.donePlaceName}>
           {place.name}
         </h3>
-        <p className={styles.placeMetaLine}>
-          <IconPin size={13} color="#94a3b8" />
-          {place.address}
-        </p>
+        <div className={styles.addressRow}>
+          <p className={styles.placeMetaLine} style={{ flex: 1, minWidth: 0 }}>
+            <IconPin size={13} color="var(--text-muted)" />
+            <span>{place.address}</span>
+          </p>
+          <button
+            type="button"
+            className={styles.copyAddrBtn}
+            onClick={() => void copyAddress()}
+            aria-label="주소 복사"
+          >
+            <IconCopy size={12} />
+            <span>복사</span>
+          </button>
+        </div>
         {place.phone && (
-          <p className={styles.placeMetaLine} style={{ marginTop: 4 }}>
-            <IconPhone size={13} color="#94a3b8" />
+          <p className={styles.placeMetaLine} style={{ marginTop: 6 }}>
+            <IconPhone size={13} color="var(--text-muted)" />
             <a href={`tel:${place.phone}`}>{place.phone}</a>
           </p>
         )}
-        <div className={styles.linkRow}>
+        <div className={styles.linkGrid}>
           <a
             className={flowStyles.secondary}
             href={kakaoMapLink(place)}
             target="_blank"
             rel="noreferrer"
           >
-            <IconMap size={15} color="#2563eb" />
-            <span>지도</span>
+            <IconMap size={15} color="var(--primary)" />
+            <span>카카오맵</span>
           </a>
           <a
             className={flowStyles.secondary}
@@ -149,8 +202,17 @@ export default function DonePage({ params }: { params: { id: string } }) {
             target="_blank"
             rel="noreferrer"
           >
-            <IconNavigation size={15} color="#2563eb" />
+            <IconNavigation size={15} color="var(--primary)" />
             <span>길찾기</span>
+          </a>
+          <a
+            className={flowStyles.secondary}
+            href={naverMapLink(place.name, place.address)}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <IconPin size={15} color="var(--primary)" />
+            <span>네이버지도</span>
           </a>
           {meeting.scheduledAt && (
             <button
@@ -158,7 +220,7 @@ export default function DonePage({ params }: { params: { id: string } }) {
               className={flowStyles.secondary}
               onClick={() => void addToCalendar()}
             >
-              <IconCalendar size={15} color="#2563eb" />
+              <IconCalendar size={15} color="var(--primary)" />
               <span>캘린더</span>
             </button>
           )}
@@ -179,7 +241,7 @@ export default function DonePage({ params }: { params: { id: string } }) {
       <details className={styles.more}>
         <summary>공유 메시지 미리보기</summary>
         <pre className={styles.preview}>{text}</pre>
-        <p>참가자의 출발지 주소는 개인정보 보호를 위해 공유 문구에서 제외했어요.</p>
+        <p>참가자의 출발지 주소는 개인정보 보호를 위해 공유 문구와 초대장 이미지에서 제외했어요.</p>
       </details>
 
       <div className={styles.doneLinks}>

@@ -2,13 +2,15 @@
 /**
  * 5단계. 장소 확인 (`/meetings/[id]/places/selected`)
  *
- * 고른 장소 문 앞까지 모든 참가자의 경로를 재조회(/api/routes)하고,
- * 추천 지역(역) 기준 대비 시간 변화와 60fps Canvas 지도를 함께 보여준다.
+ * 실사용 편의 기능:
+ * - 추천 지역(역) 기준 대비 참가자별 문 앞까지 증감(±분) 배지 표시
+ * - 주소 원탭 복사 + 전화 걸기(단체 예약 편의) + 카카오맵 바로가기
+ * - 180ms 지연 스켈레톤 적용
  */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { IconAlert, IconPhone, IconPin, IconRefresh } from '@/app/components/Icons';
+import { IconAlert, IconCopy, IconPhone, IconPin, IconRefresh } from '@/app/components/Icons';
 import FlowLayout, { FlowLoading, flowStyles } from '@/components/flow/FlowLayout';
 import { MiniMap, TravelTimeList } from '@/components/meeting/ResultBits';
 import { AnimatedNumber } from '@/components/ui/AnimatedNumber';
@@ -33,6 +35,9 @@ import {
 import { meetingActions } from '@/features/meeting/store';
 import { useMeetingStep } from '@/features/meeting/useMeetingStep';
 import { ApiError, isAbort, meetpointApi } from '@/lib/api/client';
+import { useDelayedLoading } from '@/lib/hooks/useDelayedLoading';
+import { haptic } from '@/lib/platform/haptics';
+import { copyText } from '@/lib/platform/share';
 
 type RunState =
   | { status: 'idle' }
@@ -43,7 +48,11 @@ export default function PlaceDetailPage({ params }: { params: { id: string } }) 
   const router = useRouter();
   const { meeting } = useMeetingStep(params.id, 'place');
   const [run, setRun] = useState<RunState>({ status: 'idle' });
+  const [toast, setToast] = useState<string | null>(null);
   const controller = useRef<AbortController>();
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
 
   const check = useCallback(async (target: MeetingDraft) => {
     const place = target.selectedPlace;
@@ -70,7 +79,7 @@ export default function PlaceDetailPage({ params }: { params: { id: string } }) 
     }
   }, []);
 
-  const needsCheck = !!meeting?.selectedPlace && !meeting.placeRoutes && run.status === 'idle';
+  const needsCheck = Boolean(meeting?.selectedPlace) && !meeting?.placeRoutes && run.status === 'idle';
   useEffect(() => {
     if (!needsCheck || !meeting) return;
     const timer = setTimeout(() => void check(meeting), 0);
@@ -79,6 +88,9 @@ export default function PlaceDetailPage({ params }: { params: { id: string } }) 
 
   useEffect(() => () => controller.current?.abort(), []);
 
+  const isLoadingRoutes = run.status === 'loading' || (!meeting?.placeRoutes && run.status === 'idle');
+  const showSkeleton = useDelayedLoading(isLoadingRoutes, 180);
+
   if (!meeting?.selectedPlace) return <FlowLoading title="장소 확인" />;
   const place = meeting.selectedPlace;
   const area = selectedCandidate(meeting);
@@ -86,8 +98,20 @@ export default function PlaceDetailPage({ params }: { params: { id: string } }) 
   const metrics = result?.metrics ?? null;
   const placesHref = meetingPath(meeting.id, 'places');
 
+  function notify(msg: string) {
+    setToast(msg);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 2400);
+  }
+
+  async function copyAddress() {
+    haptic('light');
+    notify((await copyText(place.address)) ? '주소를 복사했어요.' : '주소를 복사하지 못했어요.');
+  }
+
   function confirm() {
     if (!meeting) return;
+    haptic('success');
     meetingActions.confirm(meeting.id);
     router.push(meetingPath(meeting.id, 'done'));
   }
@@ -135,19 +159,30 @@ export default function PlaceDetailPage({ params }: { params: { id: string } }) 
       <section className={styles.placeHeaderCard}>
         <span className={styles.placeCategory}>{categoryText(place.category)}</span>
         <h2>{place.name}</h2>
-        <p className={styles.placeMetaLine}>
-          <IconPin size={13} color="#94a3b8" />
-          {place.address}
-        </p>
+        <div className={styles.addressRow}>
+          <p className={styles.placeMetaLine} style={{ flex: 1, minWidth: 0 }}>
+            <IconPin size={13} color="var(--text-muted)" />
+            <span>{place.address}</span>
+          </p>
+          <button
+            type="button"
+            className={styles.copyAddrBtn}
+            onClick={() => void copyAddress()}
+            aria-label="주소 복사"
+          >
+            <IconCopy size={12} />
+            <span>복사</span>
+          </button>
+        </div>
         {place.phone && (
           <p className={styles.placeMetaLine}>
-            <IconPhone size={13} color="#94a3b8" />
+            <IconPhone size={13} color="var(--text-muted)" />
             <a href={`tel:${place.phone}`}>{place.phone}</a>
           </p>
         )}
         {place.url && (
           <a className={styles.routeLink} href={place.url} target="_blank" rel="noreferrer">
-            카카오맵 장소 정보 보기 ↗
+            카카오맵 장소 정보·후기 보기 ↗
           </a>
         )}
         <MiniMap
@@ -167,13 +202,16 @@ export default function PlaceDetailPage({ params }: { params: { id: string } }) 
         </div>
       )}
 
-      {(run.status === 'loading' || (!result && run.status === 'idle')) && (
-        <RouteSkeletonList count={meeting.participants.length} />
-      )}
+      {showSkeleton && <RouteSkeletonList count={meeting.participants.length} />}
 
       {result && run.status !== 'loading' && (
         <section className={styles.detail} aria-labelledby="place-times">
-          <h3 id="place-times">이 장소까지 실제 이동시간</h3>
+          <div className={styles.subTitleRow} style={{ marginTop: 0, marginBottom: 12 }}>
+            <h3 id="place-times" style={{ marginBottom: 0 }}>
+              이 장소까지 실제 이동시간
+            </h3>
+            {area && <span className={styles.deltaLegend}>{area.candidate.name} 대비</span>}
+          </div>
 
           {metrics ? (
             <>
@@ -206,12 +244,16 @@ export default function PlaceDetailPage({ params }: { params: { id: string } }) 
             </>
           ) : (
             <p className={styles.failInline}>
-              <IconAlert size={15} color="#dc2626" />
+              <IconAlert size={15} color="var(--accent-red)" />
               일부 참가자의 경로를 찾지 못해 이 장소로는 확정할 수 없어요. 다른 장소를 골라 주세요.
             </p>
           )}
 
-          <TravelTimeList people={meeting.participants} routes={result.routes} />
+          <TravelTimeList
+            people={meeting.participants}
+            routes={result.routes}
+            baselineRoutes={area?.routes}
+          />
 
           {result.routes[0]?.status === 'ok' && (
             <p className={styles.sourceNote}>
@@ -219,6 +261,12 @@ export default function PlaceDetailPage({ params }: { params: { id: string } }) 
             </p>
           )}
         </section>
+      )}
+
+      {toast && (
+        <div className={styles.toast} role="status" aria-live="polite">
+          <span>{toast}</span>
+        </div>
       )}
     </FlowLayout>
   );

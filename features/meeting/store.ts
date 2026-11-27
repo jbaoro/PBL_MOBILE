@@ -92,6 +92,32 @@ export const meetingActions = {
     setState({ ...state, meetings });
     persist();
   },
+  /** 삭제 직후 실행 취소(Undo)로 약속을 원상 복구한다. */
+  restore(draft: MeetingDraft) {
+    setState({ ...state, meetings: { ...state.meetings, [draft.id]: draft } });
+    persist();
+  },
+  /** 기존 약속의 참가자 구성만 그대로 가져와 새 약속을 만든다. (자주 만나는 모임 재사용) */
+  duplicateWithMembers(sourceId: string): string | null {
+    const source = state.meetings[sourceId];
+    if (!source) return null;
+    const id = createId('m_');
+    const now = new Date().toISOString();
+    const cloned: MeetingDraft = {
+      id,
+      title: source.title ? `${source.title}`.slice(0, 40) : '',
+      participants: source.participants.map((p) => ({
+        ...p,
+        id: createId('p_'),
+        origin: { ...p.origin },
+      })),
+      createdAt: now,
+      updatedAt: now,
+    };
+    setState({ ...state, meetings: { ...state.meetings, [id]: cloned } });
+    persist();
+    return id;
+  },
   updateInfo: (id: string, info: { title: string; scheduledAt?: string }) =>
     update(id, (m, now) => model.updateInfo(m, info, now)),
   upsertParticipant: (id: string, person: MeetingParticipant) =>

@@ -3,12 +3,15 @@
  * 출발지 검색 입력칸 (2단계 참가자 추가·수정 및 바텀시트에서 공용)
  *
  * - 2글자 이상 입력하고 300ms 멈추면 /api/locations/search 로 자동 검색 (클라이언트 LRU 캐시 적용)
+ * - 사용자가 이전에 실제 검색해 골랐던 '최근 출발지' 1탭 재사용 칩 제공
  * - 방향키(↑/↓), Enter, Escape 키보드 탐색 지원 + 원탭 지우기 버튼
  * - 가짜 프리셋으로 대체하지 않고, 실패하면 이유를 그대로 보여준다.
  */
 import { useEffect, useRef, useState } from 'react';
-import { IconCheck, IconClose, IconPin, IconSearch } from '@/app/components/Icons';
+import { IconCheck, IconClock, IconClose, IconPin, IconSearch } from '@/app/components/Icons';
 import { ApiError, isAbort, meetpointApi } from '@/lib/api/client';
+import { haptic } from '@/lib/platform/haptics';
+import { getRecentOrigins, saveRecentOrigin } from '@/lib/platform/recents';
 import type { Location } from '@/lib/meetpoint/types';
 import styles from './meeting.module.css';
 
@@ -22,6 +25,7 @@ type Props = {
 export default function LocationSearch({ id, value, invalid, onChange }: Props) {
   const [query, setQuery] = useState(value?.name ?? '');
   const [results, setResults] = useState<Location[]>([]);
+  const [recentOrigins, setRecentOrigins] = useState<Location[]>([]);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -29,6 +33,7 @@ export default function LocationSearch({ id, value, invalid, onChange }: Props) 
   const timer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
+    setRecentOrigins(getRecentOrigins());
     return () => {
       controller.current?.abort();
       clearTimeout(timer.current);
@@ -90,6 +95,9 @@ export default function LocationSearch({ id, value, invalid, onChange }: Props) 
   function choose(location: Location) {
     clearTimeout(timer.current);
     controller.current?.abort();
+    haptic('light');
+    saveRecentOrigin(location);
+    setRecentOrigins(getRecentOrigins());
     setBusy(false);
     setQuery(location.name);
     setResults([]);
@@ -98,11 +106,13 @@ export default function LocationSearch({ id, value, invalid, onChange }: Props) 
     onChange(location);
   }
 
+  const showRecents = !value && !query.trim() && results.length === 0 && recentOrigins.length > 0;
+
   return (
     <div className={styles.search}>
       <div className={styles.searchInputWrap}>
         <span className={styles.searchLeadIcon} aria-hidden="true">
-          <IconSearch size={16} color="#94a3b8" />
+          <IconSearch size={16} color="var(--text-muted)" />
         </span>
 
         <input
@@ -153,10 +163,32 @@ export default function LocationSearch({ id, value, invalid, onChange }: Props) 
             onClick={clearInput}
             aria-label="검색어 지우기"
           >
-            <IconClose size={14} color="#64748b" />
+            <IconClose size={14} color="var(--text-sub)" />
           </button>
         ) : null}
       </div>
+
+      {showRecents && (
+        <div className={styles.recentBox}>
+          <span className={styles.recentLabel}>
+            <IconClock size={11} color="var(--text-muted)" />
+            최근 출발지
+          </span>
+          <div className={styles.quickChips} style={{ marginTop: 6 }}>
+            {recentOrigins.map((loc) => (
+              <button
+                key={loc.id}
+                type="button"
+                className={styles.quickChip}
+                onClick={() => choose(loc)}
+                title={loc.address}
+              >
+                {loc.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {results.length > 0 && (
         <ul id={`${id}-results`} className={styles.searchResults} aria-label="출발지 검색 결과">
@@ -179,7 +211,7 @@ export default function LocationSearch({ id, value, invalid, onChange }: Props) 
 
       {value && (
         <div className="selected-location-pill">
-          <IconCheck size={14} color="#059669" />
+          <IconCheck size={14} color="var(--accent-green)" />
           <span>
             <b>{value.name}</b> · {value.address}
           </span>
@@ -197,7 +229,7 @@ export default function LocationSearch({ id, value, invalid, onChange }: Props) 
               '출발지를 검색한 뒤 결과에서 하나를 골라 주세요.'
             ) : (
               <>
-                <IconPin size={11} color="#94a3b8" /> 2글자 이상 입력 후 결과에서 출발지를 선택해 주세요.
+                <IconPin size={11} color="var(--text-muted)" /> 2글자 이상 입력 후 결과에서 출발지를 선택해 주세요.
               </>
             )))}
       </p>

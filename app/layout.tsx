@@ -6,6 +6,7 @@
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
 import { Noto_Sans_KR, Plus_Jakarta_Sans } from 'next/font/google';
+import { AppShellEffects } from '@/components/ui/AppShellEffects';
 
 const notoSansKr = Noto_Sans_KR({
   subsets: ['latin'],
@@ -53,8 +54,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ko" className={`${notoSansKr.variable} ${plusJakarta.variable}`}>
-      <body>{children}</body>
+    <html lang="ko" className={`${notoSansKr.variable} ${plusJakarta.variable}`} suppressHydrationWarning>
+      <body>
+        <AppShellEffects />
+        {children}
+      </body>
     </html>
   );
 }

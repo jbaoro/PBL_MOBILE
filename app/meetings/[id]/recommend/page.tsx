@@ -2,9 +2,10 @@
 /**
  * 3단계. 추천 지역 (`/meetings/[id]/recommend`)
  *
- * - 인터랙티브 60fps Canvas 지도 + 원형 균형도 게이지 + 숫자 롤링 보간
- * - 후보 순위 목록 또는 캔버스 번호 핀을 누르면 상단 히어로 카드·지도·이동시간이 실시간으로 함께 전환됨
- * - 조회 대기 중에는 4단계 레이더 진행 뷰로 체감 속도를 높임
+ * 실사용 편의 기능:
+ * - 후보 순위 또는 Canvas 번호 핀 클릭 시 상단 히어로·지도·참가자별 증감(±분) 실시간 동기화
+ * - 스크롤 시 상단 고정 요약 바(Sticky Context Bar)로 현재 보는 후보 맥락 유지
+ * - 식당을 고르기 전에 '추천 지역만 먼저 단톡방에 공유/복사'하는 1탭 공유 지원
  */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -14,6 +15,7 @@ import {
   IconCheck,
   IconInfo,
   IconRefresh,
+  IconShare,
   IconSparkles,
 } from '@/app/components/Icons';
 import FlowLayout, { FlowLoading, flowStyles } from '@/components/flow/FlowLayout';
@@ -37,6 +39,9 @@ import {
 import { meetingActions } from '@/features/meeting/store';
 import { useMeetingStep } from '@/features/meeting/useMeetingStep';
 import { ApiError, isAbort, meetpointApi } from '@/lib/api/client';
+import { haptic } from '@/lib/platform/haptics';
+import { buildRecommendShareText } from '@/lib/platform/recommend-share';
+import { shareText } from '@/lib/platform/share';
 import type { CandidateResult, HubKind } from '@/lib/meetpoint/types';
 
 const HUB_LABEL: Record<HubKind, string> = {
@@ -73,19 +78,20 @@ function deltaLabel(diffMinutes: number): string {
   return rounded > 0 ? `+${rounded}분` : `${rounded}분`;
 }
 
-/** 현재 선택한 후보(1순위 또는 비교 중인 N순위)를 실시간으로 보여주는 히어로 카드 */
 function ActiveHeroCard({
   meeting,
   ranked,
   viewing,
   rank,
   onSelectCandidate,
+  onShareArea,
 }: {
   meeting: MeetingDraft;
   ranked: CandidateResult[];
   viewing: CandidateResult;
   rank: number;
   onSelectCandidate: (candidateId: string) => void;
+  onShareArea: () => void;
 }) {
   const metrics = viewing.metrics!;
   const balance = balanceScore(metrics);
@@ -96,11 +102,24 @@ function ActiveHeroCard({
     <section className="hero-card" aria-labelledby="active-candidate-title">
       <div className="hero-header">
         <div className="hero-title-group">
-          <span className="hero-eyebrow">
-            <IconSparkles size={12} color="#2563eb" />
-            {rank === 1 ? '추천 1순위' : `${rank}순위 후보 비교 중`}
-          </span>
-          <h2 id="active-candidate-title">{viewing.candidate.name}</h2>
+          <div className={styles.heroEyebrowRow}>
+            <span className="hero-eyebrow" style={{ marginBottom: 0 }}>
+              <IconSparkles size={12} color="var(--primary)" />
+              {rank === 1 ? '추천 1순위' : `${rank}순위 후보 비교 중`}
+            </span>
+            <button
+              type="button"
+              className={styles.areaShareBtn}
+              onClick={onShareArea}
+              title="추천 지역 요약을 단톡방에 공유"
+            >
+              <IconShare size={12} />
+              <span>지역 공유</span>
+            </button>
+          </div>
+          <h2 id="active-candidate-title" style={{ marginTop: 6 }}>
+            {viewing.candidate.name}
+          </h2>
           <p className={styles.heroAddress}>{viewing.candidate.address}</p>
         </div>
         <BalanceRing score={balance} />
@@ -116,7 +135,10 @@ function ActiveHeroCard({
           <button
             type="button"
             className={styles.backToTopBtn}
-            onClick={() => onSelectCandidate(top.candidate.id)}
+            onClick={() => {
+              haptic('light');
+              onSelectCandidate(top.candidate.id);
+            }}
           >
             1순위로
           </button>
@@ -163,10 +185,12 @@ function CandidateDetail({
   meeting,
   item,
   rank,
+  baselineRoutes,
 }: {
   meeting: MeetingDraft;
   item: CandidateResult;
   rank: number;
+  baselineRoutes?: CandidateResult['routes'];
 }) {
   return (
     <section className={styles.detail} aria-labelledby="detail-title">
@@ -177,14 +201,23 @@ function CandidateDetail({
         <ul className={styles.reasons}>
           {item.reasons.map((reason) => (
             <li key={reason}>
-              <IconCheck size={14} color="#059669" />
+              <IconCheck size={14} color="var(--accent-green)" />
               <span>{reason}</span>
             </li>
           ))}
         </ul>
       )}
-      <h4 className={styles.subTitle}>참가자별 실제 이동시간</h4>
-      <TravelTimeList people={meeting.participants} routes={item.routes} />
+      <div className={styles.subTitleRow}>
+        <h4 className={styles.subTitle} style={{ margin: 0 }}>
+          참가자별 실제 이동시간
+        </h4>
+        {rank > 1 && <span className={styles.deltaLegend}>1순위 대비 증감</span>}
+      </div>
+      <TravelTimeList
+        people={meeting.participants}
+        routes={item.routes}
+        baselineRoutes={baselineRoutes}
+      />
     </section>
   );
 }
@@ -194,7 +227,19 @@ export default function RecommendPage({ params }: { params: { id: string } }) {
   const { meeting } = useMeetingStep(params.id, 'recommend');
   const [run, setRun] = useState<RunState>({ status: 'idle' });
   const [viewingId, setViewingId] = useState<string>();
+  const [stickyBarVisible, setStickyBarVisible] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const heroSentinelRef = useRef<HTMLDivElement | null>(null);
   const controller = useRef<AbortController>();
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
+
+  const notify = useCallback((msg: string) => {
+    setToast(msg);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 2800);
+  }, []);
 
   const recommend = useCallback(async (target: MeetingDraft) => {
     controller.current?.abort();
@@ -230,6 +275,18 @@ export default function RecommendPage({ params }: { params: { id: string } }) {
   }, [needsRun, meeting, recommend]);
 
   useEffect(() => () => controller.current?.abort(), []);
+
+  // 히어로 카드가 뷰포트 위로 벗어나면 컴팩트 상단 요약 바를 부드럽게 띄운다.
+  useEffect(() => {
+    const el = heroSentinelRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(
+      ([entry]) => setStickyBarVisible(!entry.isIntersecting),
+      { rootMargin: '-60px 0px 0px 0px', threshold: 0 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [meeting?.recommendation]);
 
   if (!meeting) return <FlowLoading title="추천 지역" />;
   const backHref = meetingPath(meeting.id, 'participants');
@@ -271,7 +328,7 @@ export default function RecommendPage({ params }: { params: { id: string } }) {
         }
       >
         <div className={styles.failure} role="alert">
-          <IconAlert size={30} color="#dc2626" />
+          <IconAlert size={30} color="var(--accent-red)" />
           <h2>{run.error.message}</h2>
           <p>{errorHelp(run.error)}</p>
         </div>
@@ -289,8 +346,18 @@ export default function RecommendPage({ params }: { params: { id: string } }) {
 
   function goPlaces() {
     if (!viewing || !meeting) return;
+    haptic('medium');
     meetingActions.selectCandidate(meeting.id, viewing.candidate.id);
     router.push(meetingPath(meeting.id, 'places'));
+  }
+
+  async function shareCurrentArea() {
+    if (!viewing || !meeting) return;
+    haptic('light');
+    const summary = buildRecommendShareText(meeting, viewing, viewingRank);
+    const outcome = await shareText(summary, `${meeting.title || '약속'} 추천 지역`);
+    if (outcome === 'copied') notify('추천 지역 요약을 복사했어요. 단톡방에 의견을 물어보세요.');
+    else if (outcome === 'failed') notify('공유하지 못했어요. 잠시 후 다시 시도해 주세요.');
   }
 
   return (
@@ -303,7 +370,10 @@ export default function RecommendPage({ params }: { params: { id: string } }) {
         <button
           type="button"
           className={styles.headerAction}
-          onClick={() => void recommend(meeting)}
+          onClick={() => {
+            haptic('light');
+            void recommend(meeting);
+          }}
           aria-label="실시간 경로 다시 조회"
         >
           <IconRefresh size={18} />
@@ -321,6 +391,18 @@ export default function RecommendPage({ params }: { params: { id: string } }) {
         )
       }
     >
+      {viewing && stickyBarVisible && (
+        <div className={styles.stickyContextBar} aria-live="polite">
+          <strong>
+            {viewingRank}순위 · {viewing.candidate.name}
+          </strong>
+          <span>
+            최대 {minutesText(viewing.metrics!.maxMinutes)} · 균형도{' '}
+            {balanceScore(viewing.metrics!)}
+          </span>
+        </div>
+      )}
+
       {run.status === 'error' && (
         <p className={flowStyles.notice} role="alert">
           다시 조회하지 못했어요: {run.error.message} 아래는 이전 결과예요.
@@ -338,28 +420,31 @@ export default function RecommendPage({ params }: { params: { id: string } }) {
 
       {ranked.length === 0 ? (
         <section className={styles.failure}>
-          <IconAlert size={30} color="#d97706" />
+          <IconAlert size={30} color="var(--accent-amber)" />
           <h2>모두가 갈 수 있는 후보를 찾지 못했어요</h2>
           <p>아래 제외 사유를 확인하고, 출발지나 이동 수단을 바꿔 다시 추천을 받아 보세요.</p>
         </section>
       ) : (
         <>
-          {viewing && (
-            <ActiveHeroCard
-              meeting={meeting}
-              ranked={ranked}
-              viewing={viewing}
-              rank={viewingRank}
-              onSelectCandidate={setViewingId}
-            />
-          )}
+          <div ref={heroSentinelRef}>
+            {viewing && (
+              <ActiveHeroCard
+                meeting={meeting}
+                ranked={ranked}
+                viewing={viewing}
+                rank={viewingRank}
+                onSelectCandidate={setViewingId}
+                onShareArea={() => void shareCurrentArea()}
+              />
+            )}
+          </div>
 
           <section className="candidates-card" aria-labelledby="ranking-title">
             <div className="section-header">
               <h3 className="section-title" id="ranking-title">
                 후보 순위
               </h3>
-              <span className="section-subtext">눌러서 지도·시간 비교</span>
+              <span className="section-subtext">눌러서 지도·증감 비교</span>
             </div>
 
             <div className="candidates-list">
@@ -371,7 +456,10 @@ export default function RecommendPage({ params }: { params: { id: string } }) {
                     type="button"
                     aria-pressed={selected}
                     className={`candidate-item ${selected ? 'selected' : ''} ${styles.candidateButton}`}
-                    onClick={() => setViewingId(item.candidate.id)}
+                    onClick={() => {
+                      haptic('light');
+                      setViewingId(item.candidate.id);
+                    }}
                   >
                     <span className="candidate-rank-info">
                       <span className="rank-badge">{index + 1}</span>
@@ -406,7 +494,14 @@ export default function RecommendPage({ params }: { params: { id: string } }) {
             </p>
           </section>
 
-          {viewing && <CandidateDetail meeting={meeting} item={viewing} rank={viewingRank} />}
+          {viewing && (
+            <CandidateDetail
+              meeting={meeting}
+              item={viewing}
+              rank={viewingRank}
+              baselineRoutes={viewingRank > 1 ? ranked[0].routes : undefined}
+            />
+          )}
         </>
       )}
 
@@ -453,10 +548,16 @@ export default function RecommendPage({ params }: { params: { id: string } }) {
         <div className={styles.notices}>
           {result.notices.map((notice) => (
             <p key={notice}>
-              <IconInfo size={13} color="#64748b" />
+              <IconInfo size={13} color="var(--text-sub)" />
               <span>{notice}</span>
             </p>
           ))}
+        </div>
+      )}
+
+      {toast && (
+        <div className={styles.toast} role="status" aria-live="polite">
+          <span>{toast}</span>
         </div>
       )}
     </FlowLayout>

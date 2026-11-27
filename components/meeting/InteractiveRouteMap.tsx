@@ -1,24 +1,20 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
-import { COLOR_THEMES } from '@/components/meeting/ParticipantBits';
-import { minutesText } from '@/features/meeting/display';
+import React, { useEffect, useRef, useState } from 'react';
+import { COLOR_THEMES, TRANSPORT_OPTIONS } from '@/components/meeting/ParticipantBits';
+import { resolveCurrentTheme, type ThemeMode } from '@/components/ui/ThemeToggle';
+import { distanceText, minutesText } from '@/features/meeting/display';
 import type { MeetingParticipant } from '@/features/meeting/model';
+import { haptic } from '@/lib/platform/haptics';
 import type { CandidateResult, Coordinates, Location, RouteResult } from '@/lib/meetpoint/types';
 
 interface InteractiveRouteMapProps {
   people: MeetingParticipant[];
-  /** 현재 선택된 목적지 (추천 지역 or 최종 장소). 없으면 참가자 분포 미리보기 모드로 동작한다. */
   destination?: Location;
-  /** 선택된 목적지까지의 참가자별 실제 경로 결과 */
   routes?: RouteResult[];
-  /** 추천 지역 후보 목록 (있으면 캔버스 위에 1~6순위 마커를 띄우고 직접 클릭해 전환 가능) */
   candidates?: CandidateResult[];
-  /** 캔버스에서 다른 후보 마커를 탭했을 때 호출 */
   onSelectCandidate?: (candidateId: string) => void;
-  /** 캔버스 높이 (기본 210px) */
   height?: number;
-  /** 하단 캡션 숨김 여부 */
   caption?: string;
 }
 
@@ -32,6 +28,7 @@ interface Bounds {
 
 interface HitMarker {
   id: string;
+  kind: 'candidate' | 'person';
   x: number;
   y: number;
   radius: number;
@@ -87,11 +84,10 @@ function computeBounds(points: Coordinates[]): Bounds {
 
 /**
  * 60fps HiDPI 인터랙티브 위치·경로 시각화 Canvas.
- * - 위도 기반 경도 축소(cos(lat))를 반영해 실제 지리적 비율을 유지
- * - 후보 전환 시 Damped Spring 보간으로 부드럽게 포커스 이동
- * - 실제 카카오 경로 시간(durationMinutes)에 비례한 펄스 흐름 시각화
- * - 캔버스 위 다른 후보 번호를 직접 탭해 즉시 비교 가능
- * - 탭 비활성화(visibilitychange) 시 자동으로 rAF 루프를 정지해 배터리/CPU 절약
+ * - 참가자 핀 탭 시 해당 사람의 경로만 선명하게 강조 + 출발지·수단·거리·소요시간 말풍선 표시
+ * - 후보 번호 핀 탭 시 즉시 해당 후보 비교 전환
+ * - 목적지 기준 등시간대(Fairness Zone) 동심원 시각화
+ * - 라이트/다크 테마 전환 시 야간 카토그래피 팔레트 자동 동기화
  */
 export const InteractiveRouteMap = React.memo(function InteractiveRouteMap({
   people,
@@ -104,14 +100,32 @@ export const InteractiveRouteMap = React.memo(function InteractiveRouteMap({
 }: InteractiveRouteMapProps) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [focusedPersonId, setFocusedPersonId] = useState<string | null>(null);
+  const [theme, setTheme] = useState<ThemeMode>('light');
 
   const latestRef = useRef({
     people,
     destination,
     routes,
     candidates,
+    focusedPersonId,
+    theme,
   });
-  latestRef.current = { people, destination, routes, candidates };
+  latestRef.current = { people, destination, routes, candidates, focusedPersonId, theme };
+
+  useEffect(() => {
+    setTheme(resolveCurrentTheme());
+    const onTheme = () => setTheme(resolveCurrentTheme());
+    window.addEventListener('meetpoint:theme-change', onTheme);
+    return () => window.removeEventListener('meetpoint:theme-change', onTheme);
+  }, []);
+
+  // 참가자가 삭제되면 포커스 해제
+  useEffect(() => {
+    if (focusedPersonId && !people.some((p) => p.id === focusedPersonId)) {
+      setFocusedPersonId(null);
+    }
+  }, [people, focusedPersonId]);
 
   const stateRef = useRef<{
     width: number;
@@ -119,16 +133,16 @@ export const InteractiveRouteMap = React.memo(function InteractiveRouteMap({
     bounds: Bounds | null;
     targetLat: number | null;
     targetLng: number | null;
-    hitMarkers: HitMarker[];
-    hoveredId: string | null;
+    hits: HitMarker[];
+    hoveredKey: string | null;
   }>({
     width: 380,
     height,
     bounds: null,
     targetLat: destination?.lat ?? null,
     targetLng: destination?.lng ?? null,
-    hitMarkers: [],
-    hoveredId: null,
+    hits: [],
+    hoveredKey: null,
   });
 
   useEffect(() => {
@@ -162,20 +176,25 @@ export const InteractiveRouteMap = React.memo(function InteractiveRouteMap({
 
     const handleVisibility = () => {
       hidden = document.hidden;
-      if (!hidden) {
-        rafId = requestAnimationFrame(draw);
-      }
+      if (!hidden) rafId = requestAnimationFrame(draw);
     };
     document.addEventListener('visibilitychange', handleVisibility);
 
     const draw = (now: number) => {
       if (hidden) return;
       const st = stateRef.current;
-      const { people: ps, destination: dest, routes: rts, candidates: cands } = latestRef.current;
+      const {
+        people: ps,
+        destination: dest,
+        routes: rts,
+        candidates: cands,
+        focusedPersonId: focusId,
+        theme: mode,
+      } = latestRef.current;
+      const dark = mode === 'dark';
       const w = st.width;
       const h = st.height;
 
-      // Compute all visible geographic points
       const allPts: Coordinates[] = ps.map((p) => p.origin);
       if (dest) allPts.push(dest);
       if (cands) {
@@ -194,7 +213,6 @@ export const InteractiveRouteMap = React.memo(function InteractiveRouteMap({
         st.bounds.scaleX = goalBounds.scaleX;
       }
 
-      // Focus target (either destination or geometric centroid in preview mode)
       const centroid: Coordinates =
         ps.length > 0
           ? {
@@ -226,16 +244,22 @@ export const InteractiveRouteMap = React.memo(function InteractiveRouteMap({
         y: h - offY - (pt.lat - b.minY) * scale,
       });
 
-      // 1. Clean topographic-tinted surface
+      // 1. Background surface (Light vs Dark Cartography)
       const bg = ctx.createLinearGradient(0, 0, w, h);
-      bg.addColorStop(0, '#f3f7ff');
-      bg.addColorStop(0.55, '#f8fafc');
-      bg.addColorStop(1, '#eef4ff');
+      if (dark) {
+        bg.addColorStop(0, '#0f182c');
+        bg.addColorStop(0.55, '#111b31');
+        bg.addColorStop(1, '#0d1528');
+      } else {
+        bg.addColorStop(0, '#f3f7ff');
+        bg.addColorStop(0.55, '#f8fafc');
+        bg.addColorStop(1, '#eef4ff');
+      }
       ctx.fillStyle = bg;
       ctx.fillRect(0, 0, w, h);
 
-      // 2. Subtle dot matrix grid (clean, modern Apple Maps / Toss aesthetic)
-      ctx.fillStyle = 'rgba(148, 163, 184, 0.26)';
+      // 2. Subtle dot matrix grid
+      ctx.fillStyle = dark ? 'rgba(148, 163, 184, 0.16)' : 'rgba(148, 163, 184, 0.25)';
       const step = 24;
       for (let gx = 16; gx < w; gx += step) {
         for (let gy = 16; gy < h; gy += step) {
@@ -245,31 +269,42 @@ export const InteractiveRouteMap = React.memo(function InteractiveRouteMap({
         }
       }
 
-      // 3. Target focus radar wave
+      // 3. Target focus fairness concentric rings + animated pulse
       const focusPt = project({ lat: st.targetLat, lng: st.targetLng });
-      const pulse = reducedMotion ? 0.45 : (now % 2500) / 2500;
-      const waveR = 16 + pulse * 40;
-      const waveA = (1 - pulse) * 0.24;
 
+      // Subtle static fairness zone rings (Isochrone-inspired visual anchor)
+      ctx.save();
+      ctx.setLineDash([3, 4]);
+      ctx.strokeStyle = dark ? 'rgba(96, 165, 250, 0.16)' : 'rgba(37, 99, 235, 0.14)';
+      ctx.lineWidth = 1;
+      for (const r of [38, 72]) {
+        ctx.beginPath();
+        ctx.arc(focusPt.x, focusPt.y, r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+      ctx.restore();
+
+      const pulse = reducedMotion ? 0.45 : (now % 2600) / 2600;
+      const waveR = 16 + pulse * 40;
+      const waveA = (1 - pulse) * 0.26;
       ctx.beginPath();
       ctx.arc(focusPt.x, focusPt.y, waveR, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(37, 99, 235, ${waveA * 0.45})`;
+      ctx.fillStyle = `rgba(59, 130, 246, ${waveA * 0.42})`;
       ctx.fill();
-      ctx.strokeStyle = `rgba(37, 99, 235, ${waveA})`;
+      ctx.strokeStyle = `rgba(59, 130, 246, ${waveA})`;
       ctx.lineWidth = 1.4;
       ctx.stroke();
 
-      ctx.beginPath();
-      ctx.arc(focusPt.x, focusPt.y, 22, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(37, 99, 235, 0.08)';
-      ctx.fill();
-
-      // 4. Curved participant trajectories + live speed-proportional pulses
+      // 4. Curved participant trajectories
       const routeByPerson = new Map((rts ?? []).map((r) => [r.participantId, r]));
 
       ps.forEach((person, idx) => {
-        const theme = colorFor(person.color);
+        const themeCol = colorFor(person.color);
         const pt = project(person.origin);
+        const isFocused = focusId === person.id;
+        const dimmed = Boolean(focusId) && !isFocused;
+
         const dx = focusPt.x - pt.x;
         const dy = focusPt.y - pt.y;
         const dist = Math.hypot(dx, dy);
@@ -283,9 +318,9 @@ export const InteractiveRouteMap = React.memo(function InteractiveRouteMap({
         ctx.beginPath();
         ctx.moveTo(pt.x, pt.y);
         ctx.quadraticCurveTo(cx, cy, focusPt.x, focusPt.y);
-        ctx.strokeStyle = theme.text;
-        ctx.globalAlpha = dest ? 0.36 : 0.24;
-        ctx.lineWidth = dest ? 2 : 1.5;
+        ctx.strokeStyle = themeCol.text;
+        ctx.globalAlpha = isFocused ? 0.92 : dimmed ? 0.12 : dest ? 0.4 : 0.26;
+        ctx.lineWidth = isFocused ? 3 : dest ? 2 : 1.5;
         if (person.transport === 'walk' || !dest) {
           ctx.setLineDash([4, 4]);
         } else if (person.transport === 'car') {
@@ -294,7 +329,7 @@ export const InteractiveRouteMap = React.memo(function InteractiveRouteMap({
         ctx.stroke();
         ctx.setLineDash([]);
 
-        if (!reducedMotion && dist > 18) {
+        if (!reducedMotion && !dimmed && dist > 18) {
           const r = routeByPerson.get(person.id);
           const mins = r && r.status === 'ok' ? r.durationMinutes : 30;
           const period = Math.max(1250, Math.min(3400, mins * 55));
@@ -303,64 +338,77 @@ export const InteractiveRouteMap = React.memo(function InteractiveRouteMap({
           const px = inv * inv * pt.x + 2 * inv * t * cx + t * t * focusPt.x;
           const py = inv * inv * pt.y + 2 * inv * t * cy + t * t * focusPt.y;
 
-          ctx.globalAlpha = Math.sin(t * Math.PI) * 0.92;
+          ctx.globalAlpha = Math.sin(t * Math.PI) * 0.95;
           ctx.beginPath();
-          ctx.arc(px, py, 3, 0, Math.PI * 2);
-          ctx.fillStyle = theme.text;
+          ctx.arc(px, py, isFocused ? 3.8 : 3, 0, Math.PI * 2);
+          ctx.fillStyle = themeCol.text;
           ctx.fill();
         }
         ctx.restore();
       });
 
-      // 5. Secondary candidate markers (clickable!)
+      // 5. Secondary candidate markers
       const nextHits: HitMarker[] = [];
       if (cands && cands.length > 1) {
         cands.forEach((cand, idx) => {
           if (dest && cand.candidate.id === dest.id) return;
           const cp = project(cand.candidate);
-          nextHits.push({ id: cand.candidate.id, x: cp.x, y: cp.y, radius: 17 });
-          const hovered = st.hoveredId === cand.candidate.id;
+          nextHits.push({ id: cand.candidate.id, kind: 'candidate', x: cp.x, y: cp.y, radius: 17 });
+          const hovered = st.hoveredKey === `candidate:${cand.candidate.id}`;
 
           ctx.save();
           ctx.beginPath();
           ctx.arc(cp.x, cp.y, hovered ? 10.5 : 8.8, 0, Math.PI * 2);
-          ctx.fillStyle = '#ffffff';
-          ctx.shadowColor = 'rgba(15, 23, 42, 0.14)';
+          ctx.fillStyle = dark ? '#1e293b' : '#ffffff';
+          ctx.shadowColor = 'rgba(15, 23, 42, 0.22)';
           ctx.shadowBlur = 6;
           ctx.shadowOffsetY = 2;
           ctx.fill();
           ctx.shadowColor = 'transparent';
           ctx.lineWidth = 1.6;
-          ctx.strokeStyle = hovered ? '#2563eb' : '#94a3b8';
+          ctx.strokeStyle = hovered ? '#3b82f6' : dark ? '#64748b' : '#94a3b8';
           ctx.stroke();
 
           ctx.font = '800 9.5px sans-serif';
-          ctx.fillStyle = hovered ? '#2563eb' : '#475569';
+          ctx.fillStyle = hovered ? '#3b82f6' : dark ? '#e2e8f0' : '#475569';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(String(idx + 1), cp.x, cp.y + 0.5);
           ctx.restore();
         });
       }
-      st.hitMarkers = nextHits;
 
-      // 6. Participant pins + crisp name/ETA pills
+      // 6. Participant pins (clickable for focus highlight!)
       ps.forEach((person) => {
-        const theme = colorFor(person.color);
+        const themeCol = colorFor(person.color);
         const pt = project(person.origin);
+        nextHits.push({ id: person.id, kind: 'person', x: pt.x, y: pt.y, radius: 18 });
+
         const route = routeByPerson.get(person.id);
+        const isFocused = focusId === person.id;
+        const dimmed = Boolean(focusId) && !isFocused;
+        const hovered = st.hoveredKey === `person:${person.id}`;
 
         ctx.save();
+        ctx.globalAlpha = dimmed ? 0.35 : 1;
+
+        if (isFocused) {
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 17, 0, Math.PI * 2);
+          ctx.fillStyle = `${themeCol.text}33`;
+          ctx.fill();
+        }
+
         ctx.beginPath();
-        ctx.arc(pt.x, pt.y, 10.5, 0, Math.PI * 2);
-        ctx.fillStyle = theme.text;
-        ctx.shadowColor = 'rgba(15, 23, 42, 0.2)';
-        ctx.shadowBlur = 7;
+        ctx.arc(pt.x, pt.y, isFocused ? 12 : hovered ? 11.2 : 10.2, 0, Math.PI * 2);
+        ctx.fillStyle = themeCol.text;
+        ctx.shadowColor = 'rgba(15, 23, 42, 0.24)';
+        ctx.shadowBlur = isFocused ? 10 : 6;
         ctx.shadowOffsetY = 2;
         ctx.fill();
         ctx.shadowColor = 'transparent';
         ctx.lineWidth = 2.4;
-        ctx.strokeStyle = '#ffffff';
+        ctx.strokeStyle = dark ? '#0f172a' : '#ffffff';
         ctx.stroke();
 
         ctx.font = '800 9.5px sans-serif';
@@ -369,7 +417,6 @@ export const InteractiveRouteMap = React.memo(function InteractiveRouteMap({
         ctx.textBaseline = 'middle';
         ctx.fillText(person.name.trim().charAt(0) || '참', pt.x, pt.y + 0.5);
 
-        // Name + ETA floating chip
         const etaStr =
           route && route.status === 'ok' ? ` ${minutesText(route.durationMinutes)}` : '';
         const text = `${person.name.slice(0, 5)}${etaStr}`;
@@ -382,30 +429,39 @@ export const InteractiveRouteMap = React.memo(function InteractiveRouteMap({
         const lx = Math.max(pillW / 2 + 6, Math.min(w - pillW / 2 - 6, pt.x));
 
         drawPill(ctx, lx - pillW / 2, ly - pillH / 2, pillW, pillH, 8.5);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
-        ctx.shadowColor = 'rgba(15, 23, 42, 0.1)';
+        ctx.fillStyle = isFocused
+          ? themeCol.text
+          : dark
+            ? 'rgba(19, 28, 49, 0.94)'
+            : 'rgba(255, 255, 255, 0.94)';
+        ctx.shadowColor = 'rgba(15, 23, 42, 0.14)';
         ctx.shadowBlur = 6;
         ctx.shadowOffsetY = 1.5;
         ctx.fill();
         ctx.shadowColor = 'transparent';
         ctx.lineWidth = 1;
-        ctx.strokeStyle = 'rgba(226, 232, 240, 0.95)';
+        ctx.strokeStyle = isFocused
+          ? themeCol.text
+          : dark
+            ? 'rgba(148, 163, 184, 0.22)'
+            : 'rgba(226, 232, 240, 0.95)';
         ctx.stroke();
 
-        ctx.fillStyle = '#1e293b';
+        ctx.fillStyle = isFocused ? '#ffffff' : dark ? '#f1f5f9' : '#1e293b';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(text, lx, ly + 0.5);
         ctx.restore();
       });
 
-      // 7. Focal Destination Pin (or Centroid marker in preview mode)
+      st.hits = nextHits;
+
+      // 7. Focal Destination Pin
       ctx.save();
       if (dest) {
-        // Teardrop hub pin
         ctx.beginPath();
         ctx.ellipse(focusPt.x, focusPt.y + 3, 8, 3, 0, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(37, 99, 235, 0.22)';
+        ctx.fillStyle = 'rgba(37, 99, 235, 0.25)';
         ctx.fill();
 
         ctx.beginPath();
@@ -428,7 +484,7 @@ export const InteractiveRouteMap = React.memo(function InteractiveRouteMap({
         );
         ctx.closePath();
         ctx.fillStyle = '#2563eb';
-        ctx.shadowColor = 'rgba(37, 99, 235, 0.4)';
+        ctx.shadowColor = 'rgba(37, 99, 235, 0.45)';
         ctx.shadowBlur = 10;
         ctx.shadowOffsetY = 3;
         ctx.fill();
@@ -452,7 +508,7 @@ export const InteractiveRouteMap = React.memo(function InteractiveRouteMap({
 
         drawPill(ctx, dxClamped - dpW / 2, dyPos - dpH / 2, dpW, dpH, 10.5);
         ctx.fillStyle = '#1d4ed8';
-        ctx.shadowColor = 'rgba(37, 99, 235, 0.3)';
+        ctx.shadowColor = 'rgba(37, 99, 235, 0.34)';
         ctx.shadowBlur = 8;
         ctx.shadowOffsetY = 2;
         ctx.fill();
@@ -463,12 +519,11 @@ export const InteractiveRouteMap = React.memo(function InteractiveRouteMap({
         ctx.textBaseline = 'middle';
         ctx.fillText(destText, dxClamped, dyPos + 0.5);
       } else {
-        // Preview mode center crosshair
         ctx.beginPath();
         ctx.arc(focusPt.x, focusPt.y, 7.5, 0, Math.PI * 2);
-        ctx.fillStyle = '#2563eb';
+        ctx.fillStyle = '#3b82f6';
         ctx.lineWidth = 2.5;
-        ctx.strokeStyle = '#ffffff';
+        ctx.strokeStyle = dark ? '#0f172a' : '#ffffff';
         ctx.fill();
         ctx.stroke();
 
@@ -497,27 +552,47 @@ export const InteractiveRouteMap = React.memo(function InteractiveRouteMap({
       ro.disconnect();
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [height, people, destination, routes, candidates]);
+  }, [height, people, destination, routes, candidates, focusedPersonId, theme]);
 
-  const handlePointer = (
-    event: React.PointerEvent<HTMLCanvasElement>,
-    mode: 'move' | 'down'
-  ) => {
-    if (!onSelectCandidate) return;
+  const handlePointer = (event: React.PointerEvent<HTMLCanvasElement>, mode: 'move' | 'down') => {
     const rect = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    const hit = stateRef.current.hitMarkers.find(
-      (m) => Math.hypot(x - m.x, y - m.y) <= m.radius
-    );
+
+    // Check participant pins first, then candidate markers
+    const hit = [...stateRef.current.hits]
+      .reverse()
+      .find((m) => Math.hypot(x - m.x, y - m.y) <= m.radius);
 
     if (mode === 'move') {
-      stateRef.current.hoveredId = hit?.id ?? null;
-      event.currentTarget.style.cursor = hit ? 'pointer' : 'default';
-    } else if (hit) {
+      const usable = hit && (hit.kind === 'person' || Boolean(onSelectCandidate));
+      stateRef.current.hoveredKey = usable ? `${hit.kind}:${hit.id}` : null;
+      event.currentTarget.style.cursor = usable ? 'pointer' : 'default';
+      return;
+    }
+
+    if (!hit) {
+      if (focusedPersonId) setFocusedPersonId(null);
+      return;
+    }
+
+    if (hit.kind === 'person') {
+      haptic('light');
+      setFocusedPersonId((prev) => (prev === hit.id ? null : hit.id));
+    } else if (hit.kind === 'candidate' && onSelectCandidate) {
+      haptic('light');
+      setFocusedPersonId(null);
       onSelectCandidate(hit.id);
     }
   };
+
+  const focusedPerson = focusedPersonId ? people.find((p) => p.id === focusedPersonId) : undefined;
+  const focusedRoute = focusedPerson
+    ? (routes ?? []).find((r) => r.participantId === focusedPerson.id)
+    : undefined;
+  const focusedTransportLabel = focusedPerson
+    ? TRANSPORT_OPTIONS.find((t) => t.value === focusedPerson.transport)?.label ?? ''
+    : '';
 
   const hasMultipleCandidates = (candidates?.length ?? 0) > 1 && Boolean(onSelectCandidate);
 
@@ -531,8 +606,8 @@ export const InteractiveRouteMap = React.memo(function InteractiveRouteMap({
           height,
           borderRadius: 16,
           overflow: 'hidden',
-          border: '1px solid rgba(37, 99, 235, 0.14)',
-          background: '#f3f7ff',
+          border: '1px solid var(--border)',
+          background: theme === 'dark' ? '#0f182c' : '#f3f7ff',
         }}
       >
         <canvas
@@ -547,14 +622,50 @@ export const InteractiveRouteMap = React.memo(function InteractiveRouteMap({
           onPointerDown={(e) => handlePointer(e, 'down')}
           style={{ display: 'block', width: '100%', height: '100%' }}
         />
-        {hasMultipleCandidates && (
+
+        {focusedPerson ? (
+          <button
+            type="button"
+            onClick={() => setFocusedPersonId(null)}
+            style={{
+              position: 'absolute',
+              left: 10,
+              right: 10,
+              bottom: 9,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              padding: '6px 11px',
+              borderRadius: 11,
+              background: 'rgba(15, 23, 42, 0.88)',
+              color: '#ffffff',
+              fontSize: 11.5,
+              fontWeight: 600,
+              backdropFilter: 'blur(8px)',
+              textAlign: 'left',
+            }}
+          >
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <b>{focusedPerson.name}</b> · {focusedPerson.origin.name} ({focusedTransportLabel})
+              {focusedRoute?.status === 'ok'
+                ? ` · ${minutesText(focusedRoute.durationMinutes)}${
+                    distanceText(focusedRoute.distanceMeters)
+                      ? ` (${distanceText(focusedRoute.distanceMeters)})`
+                      : ''
+                  }`
+                : ''}
+            </span>
+            <span style={{ opacity: 0.72, flexShrink: 0 }}>해제</span>
+          </button>
+        ) : (
           <span
             aria-hidden="true"
             style={{
               position: 'absolute',
               left: 10,
               bottom: 9,
-              padding: '3px 8px',
+              padding: '3px 9px',
               borderRadius: 999,
               background: 'rgba(15, 23, 42, 0.72)',
               color: '#ffffff',
@@ -564,7 +675,7 @@ export const InteractiveRouteMap = React.memo(function InteractiveRouteMap({
               pointerEvents: 'none',
             }}
           >
-            번호 핀을 눌러 후보 비교
+            {hasMultipleCandidates ? '핀을 눌러 경로·후보 비교' : '참가자 핀을 눌러 출발지 확인'}
           </span>
         )}
       </div>
@@ -573,7 +684,7 @@ export const InteractiveRouteMap = React.memo(function InteractiveRouteMap({
           style={{
             marginTop: 7,
             fontSize: 11.5,
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
             textAlign: 'center',
           }}
         >

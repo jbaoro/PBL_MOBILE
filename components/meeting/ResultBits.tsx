@@ -3,7 +3,7 @@
  * 추천 결과 표시 조각 (3단계 추천 지역, 5단계 장소 확인, 6단계 확정에서 사용)
  * - MiniMap: 60fps HiDPI 인터랙티브 위치·경로 시각화 Canvas
  * - BalanceRing: SVG 원형 균형도 게이지
- * - TravelTimeList: GPU 가속(scaleX) 참가자별 이동시간 비교 막대
+ * - TravelTimeList: GPU 가속(scaleX) 참가자별 이동시간 비교 막대 + 기준 대비 증감(±분) 배지
  */
 import React from 'react';
 import { AvatarInitial, TransportIcon } from './ParticipantBits';
@@ -42,14 +42,14 @@ export function MiniMap({
   );
 }
 
-/** SVG 원형 균형도 링 게이지 (GPU stroke-dashoffset 부드러운 전환) */
+/** SVG 원형 균형도 링 게이지 */
 export const BalanceRing = React.memo(function BalanceRing({ score }: { score: number }) {
   const clamped = Math.max(0, Math.min(100, score));
   const r = 24;
   const circ = 2 * Math.PI * r;
   const offset = circ * (1 - clamped / 100);
-  const stroke = clamped >= 75 ? '#059669' : clamped >= 55 ? '#2563eb' : '#d97706';
-  const track = clamped >= 75 ? '#d1fae5' : clamped >= 55 ? '#dbeafe' : '#fef3c7';
+  const stroke = clamped >= 75 ? '#10b981' : clamped >= 55 ? '#3b82f6' : '#f59e0b';
+  const track = clamped >= 75 ? 'rgba(16,185,129,0.18)' : clamped >= 55 ? 'rgba(59,130,246,0.18)' : 'rgba(245,158,11,0.18)';
 
   return (
     <div
@@ -74,7 +74,10 @@ export const BalanceRing = React.memo(function BalanceRing({ score }: { score: n
           strokeDasharray={circ}
           strokeDashoffset={offset}
           transform="rotate(-90 31 31)"
-          style={{ transition: 'stroke-dashoffset 0.45s cubic-bezier(0.22, 1, 0.36, 1), stroke 0.25s ease' }}
+          style={{
+            transition:
+              'stroke-dashoffset 0.45s cubic-bezier(0.22, 1, 0.36, 1), stroke 0.25s ease',
+          }}
         />
       </svg>
       <div className={styles.balanceRingCenter}>
@@ -87,13 +90,19 @@ export const BalanceRing = React.memo(function BalanceRing({ score }: { score: n
   );
 });
 
-/** 참가자별 이동시간: GPU scaleX 애니메이션 막대 + 평균 기준선 + 거리 + 상세 경로 링크 */
+/**
+ * 참가자별 이동시간: GPU scaleX 애니메이션 막대 + 평균 기준선 + 거리 + 상세 경로 링크.
+ * baselineRoutes가 주어지면(예: 1순위 대비 2순위 비교, 또는 역 대비 실제 식당 비교)
+ * 각 참가자 옆에 ±분 증감 배지를 표시해 직관적인 의사결정을 돕는다.
+ */
 export const TravelTimeList = React.memo(function TravelTimeList({
   people,
   routes,
+  baselineRoutes,
 }: {
   people: MeetingParticipant[];
   routes: RouteResult[];
+  baselineRoutes?: RouteResult[];
 }) {
   const okMinutes = routes
     .filter((r): r is Extract<RouteResult, { status: 'ok' }> => r.status === 'ok')
@@ -111,6 +120,11 @@ export const TravelTimeList = React.memo(function TravelTimeList({
       {people.map((person) => {
         const route = routes.find((item) => item.participantId === person.id);
         const ok = route?.status === 'ok' ? route : undefined;
+        const baseRoute = baselineRoutes?.find((item) => item.participantId === person.id);
+        const baseOk = baseRoute?.status === 'ok' ? baseRoute : undefined;
+        const deltaMin =
+          ok && baseOk ? Math.round(ok.durationMinutes - baseOk.durationMinutes) : null;
+
         const isLongest = ok && okMinutes.length > 1 && ok.durationMinutes === longest;
         const isShortest =
           ok && okMinutes.length > 1 && ok.durationMinutes === shortest && !isLongest;
@@ -129,10 +143,21 @@ export const TravelTimeList = React.memo(function TravelTimeList({
                 {isLongest && <span className={styles.tagLongest}>최장</span>}
                 {isShortest && <span className={styles.tagFastest}>최단</span>}
                 {distLabel && <span className={styles.timeDist}>{distLabel}</span>}
+
                 {ok ? (
-                  <b className={`${styles.timeValue} ${isLongest ? styles.timeLongest : ''}`}>
-                    <AnimatedNumber value={ok.durationMinutes} format={minutesText} />
-                  </b>
+                  <span className={styles.timeRight}>
+                    {deltaMin !== null && deltaMin !== 0 && (
+                      <span
+                        className={deltaMin < 0 ? styles.deltaFaster : styles.deltaSlower}
+                        title="기준 대비 시간 변화"
+                      >
+                        {deltaMin > 0 ? `+${deltaMin}분` : `${deltaMin}분`}
+                      </span>
+                    )}
+                    <b className={`${styles.timeValue} ${isLongest ? styles.timeLongest : ''}`}>
+                      <AnimatedNumber value={ok.durationMinutes} format={minutesText} />
+                    </b>
+                  </span>
                 ) : (
                   <b className={styles.timeFail}>조회 실패</b>
                 )}
@@ -159,12 +184,7 @@ export const TravelTimeList = React.memo(function TravelTimeList({
               )}
 
               {ok?.url && (
-                <a
-                  className={styles.routeLink}
-                  href={ok.url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
+                <a className={styles.routeLink} href={ok.url} target="_blank" rel="noreferrer">
                   카카오맵 상세 경로 ↗
                 </a>
               )}

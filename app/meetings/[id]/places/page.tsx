@@ -2,13 +2,22 @@
 /**
  * 4단계. 주변 장소 (`/meetings/[id]/places`)
  *
- * - GPU 슬라이딩 세그먼트(음식점/카페) + 원탭 추천 키워드 칩 + 0ms 클라이언트 캐시
- * - 로딩 시 Shimmer Skeleton으로 CLS(레이아웃 흔들림) 제거
+ * 실사용 편의 기능:
+ * - 후보 장소 찜하기(북마크) & '찜한 곳만 보기' 필터
+ * - 선택 전 카카오맵에서 사진·후기·영업시간을 바로 확인할 수 있는 '카카오맵 ↗' 링크
+ * - 180ms 지연 스켈레톤으로 빠른 캐시 응답 시 깜빡임 제거
  */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { IconCoffee, IconPhone, IconPin, IconUtensils } from '@/app/components/Icons';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  IconCoffee,
+  IconExternalLink,
+  IconHeart,
+  IconPhone,
+  IconPin,
+  IconUtensils,
+} from '@/app/components/Icons';
 import FlowLayout, { FlowLoading, flowStyles } from '@/components/flow/FlowLayout';
 import { PlaceSkeletonList } from '@/components/ui/Skeleton';
 import styles from '@/components/meeting/meeting.module.css';
@@ -17,6 +26,9 @@ import { TOTAL_STEPS, meetingPath, selectedCandidate, stepNumber } from '@/featu
 import { meetingActions } from '@/features/meeting/store';
 import { useMeetingStep } from '@/features/meeting/useMeetingStep';
 import { ApiError, isAbort, meetpointApi } from '@/lib/api/client';
+import { useDelayedLoading } from '@/lib/hooks/useDelayedLoading';
+import { haptic } from '@/lib/platform/haptics';
+import { getBookmarkedPlaceIds, toggleBookmarkedPlace } from '@/lib/platform/recents';
 import type { Place, PlaceCategory } from '@/lib/meetpoint/types';
 
 const RADII = [500, 1000, 2000] as const;
@@ -39,11 +51,19 @@ export default function PlacesPage({ params }: { params: { id: string } }) {
   });
   const [keywordInput, setKeywordInput] = useState('');
   const [places, setPlaces] = useState<Place[]>([]);
+  const [savedIds, setSavedIds] = useState<string[]>([]);
+  const [onlySaved, setOnlySaved] = useState(false);
   const [page, setPage] = useState(1);
   const [hasNext, setHasNext] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const controller = useRef<AbortController>();
+
+  const showSkeleton = useDelayedLoading(busy, 180);
+
+  useEffect(() => {
+    setSavedIds(getBookmarkedPlaceIds(params.id));
+  }, [params.id]);
 
   const load = useCallback(
     async (nextPage: number, current: Filters) => {
@@ -91,22 +111,41 @@ export default function PlacesPage({ params }: { params: { id: string } }) {
 
   useEffect(() => () => controller.current?.abort(), []);
 
+  const displayedPlaces = useMemo(() => {
+    if (!onlySaved) return places;
+    const set = new Set(savedIds);
+    return places.filter((p) => set.has(p.id));
+  }, [places, onlySaved, savedIds]);
+
+  const savedInCurrentList = useMemo(() => {
+    const set = new Set(savedIds);
+    return places.filter((p) => set.has(p.id)).length;
+  }, [places, savedIds]);
+
   if (!meeting || !area) return <FlowLoading title="주변 장소" />;
 
   function change(next: Partial<Filters>) {
     setPlaces([]);
     setHasNext(false);
+    setOnlySaved(false);
     setFilters((previous) => ({ ...previous, ...next }));
   }
 
   function applyQuickKeyword(word: string) {
+    haptic('light');
     const nextWord = filters.keyword === word ? '' : word;
     setKeywordInput(nextWord);
     change({ keyword: nextWord });
   }
 
+  function toggleBookmark(placeId: string) {
+    haptic('light');
+    setSavedIds(toggleBookmarkedPlace(params.id, placeId));
+  }
+
   function choose(place: Place) {
     if (!meeting) return;
+    haptic('medium');
     meetingActions.selectPlace(meeting.id, place);
     router.push(meetingPath(meeting.id, 'place'));
   }
@@ -130,7 +169,7 @@ export default function PlacesPage({ params }: { params: { id: string } }) {
     >
       <div className={styles.lead}>
         <h2>어디서 만날까요?</h2>
-        <p>장소를 고르면 그곳 문 앞까지 모두의 이동시간을 다시 확인해요.</p>
+        <p>마음에 드는 곳을 찜해 비교하거나, 눌러서 문 앞까지 실제 이동시간을 확인하세요.</p>
       </div>
 
       <div className={styles.filterCard}>
@@ -155,6 +194,7 @@ export default function PlacesPage({ params }: { params: { id: string } }) {
               className={`places-category-btn ${filters.category === value ? 'active' : ''}`}
               onClick={() => {
                 if (filters.category !== value) {
+                  haptic('light');
                   setKeywordInput('');
                   change({ category: value, keyword: '' });
                 }
@@ -166,18 +206,38 @@ export default function PlacesPage({ params }: { params: { id: string } }) {
           ))}
         </div>
 
-        <div className={styles.radiusRow} role="group" aria-label="검색 반경">
+        <div className={styles.radiusRow} role="group" aria-label="검색 반경 및 찜 필터">
           {RADII.map((radius) => (
             <button
               key={radius}
               type="button"
               aria-pressed={filters.radius === radius}
               className={styles.chip}
-              onClick={() => filters.radius !== radius && change({ radius })}
+              onClick={() => {
+                if (filters.radius !== radius) {
+                  haptic('light');
+                  change({ radius });
+                }
+              }}
             >
               {distanceText(radius)}
             </button>
           ))}
+
+          {savedInCurrentList > 0 && (
+            <button
+              type="button"
+              aria-pressed={onlySaved}
+              className={`${styles.chip} ${styles.savedFilterChip}`}
+              onClick={() => {
+                haptic('light');
+                setOnlySaved((prev) => !prev);
+              }}
+            >
+              <IconHeart size={12} filled={onlySaved} color={onlySaved ? '#e11d48' : 'currentColor'} />
+              <span>찜 {savedInCurrentList}</span>
+            </button>
+          )}
         </div>
 
         <form
@@ -252,19 +312,20 @@ export default function PlacesPage({ params }: { params: { id: string } }) {
         </div>
       )}
 
-      {places.length > 0 && (
+      {displayedPlaces.length > 0 && (
         <ul className={styles.placeList} aria-label={`${area.name} 주변 ${label}`}>
-          {places.map((place) => {
+          {displayedPlaces.map((place) => {
             const isChosen = chosen?.id === place.id;
+            const isSaved = savedIds.includes(place.id);
             return (
-              <li key={place.id}>
+              <li key={place.id} className={styles.placeCardWrap}>
                 <button
                   type="button"
                   className={`place-card-item ${styles.placeButton} ${isChosen ? styles.placeChosen : ''}`}
                   onClick={() => choose(place)}
                   aria-label={`${place.name} 고르기`}
                 >
-                  <span className="place-top-row">
+                  <span className="place-top-row" style={{ paddingRight: 36 }}>
                     <span className="place-card-name">{place.name}</span>
                     {distanceText(place.distanceMeters) && (
                       <span className="place-card-dist">{distanceText(place.distanceMeters)}</span>
@@ -273,46 +334,89 @@ export default function PlacesPage({ params }: { params: { id: string } }) {
                   <span className="place-card-meta">
                     <span>{categoryText(place.category)}</span>
                     <span className={styles.placeMetaLine}>
-                      <IconPin size={12} color="#94a3b8" />
+                      <IconPin size={12} color="var(--text-muted)" />
                       {place.address}
                     </span>
                     {place.phone && (
                       <span className={styles.placeMetaLine}>
-                        <IconPhone size={12} color="#94a3b8" />
+                        <IconPhone size={12} color="var(--text-muted)" />
                         {place.phone}
                       </span>
                     )}
                   </span>
                   {isChosen && <span className={styles.chosenTag}>지금 고른 장소</span>}
                 </button>
+
+                <button
+                  type="button"
+                  className={`${styles.bookmarkBtn} ${isSaved ? styles.bookmarkSaved : ''}`}
+                  onClick={() => toggleBookmark(place.id)}
+                  aria-pressed={isSaved}
+                  aria-label={isSaved ? `${place.name} 찜 해제` : `${place.name} 찜하기`}
+                  title={isSaved ? '찜 해제' : '후보 찜하기'}
+                >
+                  <IconHeart
+                    size={16}
+                    filled={isSaved}
+                    color={isSaved ? '#e11d48' : 'var(--text-muted)'}
+                  />
+                </button>
+
+                {place.url && (
+                  <a
+                    href={place.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={styles.placePeekLink}
+                    title="카카오맵에서 사진·후기 미리보기"
+                  >
+                    <span>후기·사진</span>
+                    <IconExternalLink size={11} />
+                  </a>
+                )}
               </li>
             );
           })}
         </ul>
       )}
 
-      {busy && <PlaceSkeletonList count={places.length > 0 ? 2 : 5} />}
+      {showSkeleton && <PlaceSkeletonList count={places.length > 0 ? 2 : 5} />}
 
-      {!busy && !error && places.length === 0 && (
+      {!busy && !error && displayedPlaces.length === 0 && (
         <div className={styles.emptyBox}>
-          <p>
-            <b>{distanceText(filters.radius)}</b> 안에서{' '}
-            {filters.keyword ? `‘${filters.keyword}’ ` : ''}
-            {label}을 찾지 못했어요.
-          </p>
-          {filters.radius < 2000 && (
-            <button
-              type="button"
-              className={flowStyles.secondary}
-              onClick={() => change({ radius: 2000 })}
-            >
-              2km까지 넓혀 보기
-            </button>
+          {onlySaved ? (
+            <>
+              <p>현재 목록에서 찜한 장소가 없어요.</p>
+              <button
+                type="button"
+                className={flowStyles.secondary}
+                onClick={() => setOnlySaved(false)}
+              >
+                전체 결과 보기
+              </button>
+            </>
+          ) : (
+            <>
+              <p>
+                <b>{distanceText(filters.radius)}</b> 안에서{' '}
+                {filters.keyword ? `‘${filters.keyword}’ ` : ''}
+                {label}을 찾지 못했어요.
+              </p>
+              {filters.radius < 2000 && (
+                <button
+                  type="button"
+                  className={flowStyles.secondary}
+                  onClick={() => change({ radius: 2000 })}
+                >
+                  2km까지 넓혀 보기
+                </button>
+              )}
+            </>
           )}
         </div>
       )}
 
-      {!busy && hasNext && (
+      {!busy && !onlySaved && hasNext && (
         <button
           type="button"
           className={`${flowStyles.secondary} ${styles.moreButton}`}
@@ -323,7 +427,7 @@ export default function PlacesPage({ params }: { params: { id: string } }) {
       )}
 
       <p className={styles.sourceNote}>
-        카카오맵 검색 결과 기준이며, 영업 여부·가격·평점은 제공되지 않아요.
+        카카오맵 검색 결과 기준이며, 사진·후기·영업시간은 각 카드의 &lsquo;후기·사진&rsquo;에서 바로 확인할 수 있어요.
       </p>
     </FlowLayout>
   );

@@ -2,16 +2,28 @@
 /**
  * 약속 목록 (기본 주소 `/`)
  *
- * 앱의 첫 화면. 이 기기에 저장된 약속을 최근 수정 순으로 보여주고,
- * 새 약속을 만들면 1단계(모임 정보)로 이동한다.
+ * 실사용 편의 기능:
+ * - 지난 모임의 참가자 구성만 그대로 가져오는 '멤버 그대로 새 약속' 1탭 복제
+ * - 삭제 시 즉시 반영 + 4.5초 실행취소(Undo) 스낵바
+ * - 약속이 4개 이상일 때만 표시되는 빠른 검색
+ * - 다크모드 전환 및 PWA 설치 지원
  */
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { IconPin, IconPlus, IconSparkles, IconUsers } from '@/app/components/Icons';
+import {
+  IconClose,
+  IconDuplicate,
+  IconPin,
+  IconPlus,
+  IconSearch,
+  IconSparkles,
+  IconUsers,
+} from '@/app/components/Icons';
 import FlowLayout, { FlowLoading, flowStyles } from '@/components/flow/FlowLayout';
 import { AvatarStack } from '@/components/meeting/ParticipantBits';
 import { PwaInstallButton } from '@/components/ui/PwaInstallButton';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import {
   TOTAL_STEPS,
   meetingPath,
@@ -23,6 +35,7 @@ import {
 } from '@/features/meeting/model';
 import { scheduleText } from '@/features/meeting/share';
 import { meetingActions, useMeetingList, useMeetingStore } from '@/features/meeting/store';
+import { haptic } from '@/lib/platform/haptics';
 import styles from './home.module.css';
 
 const statusLabel: Record<MeetingStatus, string> = {
@@ -34,8 +47,15 @@ const statusLabel: Record<MeetingStatus, string> = {
 
 type FilterKind = 'all' | 'active' | 'confirmed';
 
-const MeetingCard = React.memo(function MeetingCard({ meeting }: { meeting: MeetingDraft }) {
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+const MeetingCard = React.memo(function MeetingCard({
+  meeting,
+  onDuplicate,
+  onDelete,
+}: {
+  meeting: MeetingDraft;
+  onDuplicate: (meeting: MeetingDraft) => void;
+  onDelete: (meeting: MeetingDraft) => void;
+}) {
   const status = meetingStatus(meeting);
   const step = resumeStep(meeting);
   const stepIdx = stepNumber(step);
@@ -59,7 +79,7 @@ const MeetingCard = React.memo(function MeetingCard({ meeting }: { meeting: Meet
           <span className={styles.cardMeta}>
             {confirmedPlace ? (
               <span className={styles.cardPlace}>
-                <IconPin size={12} color="#059669" />
+                <IconPin size={12} color="var(--accent-green)" />
                 {confirmedPlace}
                 {schedule ? ` · ${schedule}` : ''}
               </span>
@@ -78,48 +98,43 @@ const MeetingCard = React.memo(function MeetingCard({ meeting }: { meeting: Meet
         </div>
       </Link>
 
-      {confirmingDelete ? (
-        <div className={styles.deleteConfirm}>
-          <span>이 약속을 삭제할까요?</span>
+      <button
+        type="button"
+        className={styles.deleteButton}
+        onClick={() => onDelete(meeting)}
+        aria-label={`${meeting.title || '제목 없는 약속'} 삭제`}
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <polyline points="3 6 5 6 21 6" />
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+          <path d="M10 11v6M14 11v6" />
+          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+        </svg>
+      </button>
+
+      {meeting.participants.length > 0 && (
+        <div className={styles.cardActions}>
           <button
             type="button"
-            className={styles.deleteYes}
-            onClick={() => meetingActions.remove(meeting.id)}
+            className={styles.cardActionBtn}
+            onClick={() => onDuplicate(meeting)}
+            title="이 멤버 그대로 새 약속 만들기"
+            aria-label={`${meeting.title || '약속'} 멤버 그대로 새 약속 만들기`}
           >
-            삭제
-          </button>
-          <button
-            type="button"
-            className={flowStyles.ghost}
-            onClick={() => setConfirmingDelete(false)}
-          >
-            취소
+            <IconDuplicate size={14} />
+            <span>이 멤버 그대로 새 약속</span>
           </button>
         </div>
-      ) : (
-        <button
-          type="button"
-          className={styles.deleteButton}
-          onClick={() => setConfirmingDelete(true)}
-          aria-label={`${meeting.title || '제목 없는 약속'} 삭제`}
-        >
-          <svg
-            width="17"
-            height="17"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <polyline points="3 6 5 6 21 6" />
-            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-            <path d="M10 11v6M14 11v6" />
-            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-          </svg>
-        </button>
       )}
     </li>
   );
@@ -130,17 +145,55 @@ export default function MeetingsHome() {
   const { hydrated, meetings } = useMeetingList();
   const { saveError } = useMeetingStore();
   const [filter, setFilter] = useState<FilterKind>('all');
+  const [searchText, setSearchText] = useState('');
+  const [undoItem, setUndoItem] = useState<MeetingDraft | null>(null);
+  const undoTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => () => clearTimeout(undoTimer.current), []);
 
   const filtered = useMemo(() => {
-    if (filter === 'all') return meetings;
-    return meetings.filter((m) =>
-      filter === 'confirmed' ? Boolean(m.confirmedAt) : !m.confirmedAt
-    );
-  }, [meetings, filter]);
+    const q = searchText.trim().toLowerCase();
+    return meetings.filter((m) => {
+      if (filter === 'confirmed' && !m.confirmedAt) return false;
+      if (filter === 'active' && m.confirmedAt) return false;
+      if (!q) return true;
+      return (
+        m.title.toLowerCase().includes(q) ||
+        (m.selectedPlace?.name.toLowerCase().includes(q) ?? false) ||
+        m.participants.some((p) => p.name.toLowerCase().includes(q))
+      );
+    });
+  }, [meetings, filter, searchText]);
+
+  const handleDuplicate = useCallback(
+    (source: MeetingDraft) => {
+      haptic('medium');
+      const newId = meetingActions.duplicateWithMembers(source.id);
+      if (newId) router.push(meetingPath(newId, 'info'));
+    },
+    [router]
+  );
+
+  const handleDelete = useCallback((target: MeetingDraft) => {
+    haptic('light');
+    meetingActions.remove(target.id);
+    setUndoItem(target);
+    clearTimeout(undoTimer.current);
+    undoTimer.current = setTimeout(() => setUndoItem(null), 4500);
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    if (!undoItem) return;
+    haptic('success');
+    meetingActions.restore(undoItem);
+    clearTimeout(undoTimer.current);
+    setUndoItem(null);
+  }, [undoItem]);
 
   if (!hydrated) return <FlowLoading title="MeetPoint" />;
 
   function startNew() {
+    haptic('light');
     const id = meetingActions.create();
     router.push(meetingPath(id, 'info'));
   }
@@ -149,7 +202,12 @@ export default function MeetingsHome() {
     <FlowLayout
       title="MeetPoint"
       brand
-      action={<PwaInstallButton />}
+      action={
+        <div className={styles.headerActions}>
+          <PwaInstallButton />
+          <ThemeToggle />
+        </div>
+      }
       bottom={
         <button type="button" className={flowStyles.primary} onClick={startNew}>
           <IconPlus size={18} color="#ffffff" />
@@ -226,28 +284,70 @@ export default function MeetingsHome() {
           )}
         </div>
 
+        {meetings.length >= 4 && (
+          <div className={styles.searchWrap}>
+            <span className={styles.searchIcon} aria-hidden="true">
+              <IconSearch size={15} color="var(--text-muted)" />
+            </span>
+            <input
+              type="search"
+              className={styles.searchInput}
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="약속 이름, 멤버, 확정 장소로 찾기"
+              aria-label="저장된 약속 검색"
+            />
+            {searchText && (
+              <button
+                type="button"
+                className={styles.searchClear}
+                onClick={() => setSearchText('')}
+                aria-label="검색어 지우기"
+              >
+                <IconClose size={13} />
+              </button>
+            )}
+          </div>
+        )}
+
         {meetings.length === 0 ? (
           <div className={styles.empty}>
             <span className={styles.emptyIcon} aria-hidden="true">
-              <IconUsers size={22} color="#2563eb" />
+              <IconUsers size={22} color="var(--primary)" />
             </span>
             <strong>아직 만든 약속이 없어요</strong>
             <p>아래 버튼으로 첫 약속을 시작해 보세요.</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className={styles.empty}>
-            <p>해당 상태의 약속이 없어요.</p>
+            <p>조건에 맞는 약속이 없어요.</p>
           </div>
         ) : (
           <ul className={styles.list}>
             {filtered.map((meeting) => (
-              <MeetingCard key={meeting.id} meeting={meeting} />
+              <MeetingCard
+                key={meeting.id}
+                meeting={meeting}
+                onDuplicate={handleDuplicate}
+                onDelete={handleDelete}
+              />
             ))}
           </ul>
         )}
 
-        <p className={styles.storageHint}>약속 내역은 서버 전송 없이 이 기기에 안전하게 저장돼요.</p>
+        <p className={styles.storageHint}>
+          약속 내역은 이 기기에 안전하게 저장되며 오프라인에서도 확인할 수 있어요.
+        </p>
       </section>
+
+      {undoItem && (
+        <div className={styles.undoBar} role="status" aria-live="polite">
+          <span>&lsquo;{undoItem.title || '제목 없는 약속'}&rsquo;을 삭제했어요.</span>
+          <button type="button" className={styles.undoBtn} onClick={handleUndo}>
+            되돌리기
+          </button>
+        </div>
+      )}
     </FlowLayout>
   );
 }
